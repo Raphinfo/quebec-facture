@@ -7,7 +7,7 @@ const sql = neon(process.env.DATABASE_URL!);
 // 1. MODIFICATION DU STATUT
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } | Promise<{ id: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -17,8 +17,9 @@ export async function PATCH(
       return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 });
     }
 
-    // Extraction sécurisée des paramètres (Next.js 15+ compatible)
-    const { id: invoiceId } = await params;
+    // Extraction sécurisée des paramètres
+    const resolvedParams = await params;
+    const invoiceId = resolvedParams.id;
     const { status } = await request.json();
 
     if (!status) {
@@ -42,7 +43,7 @@ export async function PATCH(
 // 2. SUPPRESSION SÉCURISÉE DE LA FACTURE
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } | Promise<{ id: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -53,7 +54,8 @@ export async function DELETE(
     }
 
     // Extraction sécurisée des paramètres
-    const { id: invoiceId } = await params;
+    const resolvedParams = await params;
+    const invoiceId = resolvedParams.id;
 
     const result = await sql`
       DELETE FROM "Invoice"

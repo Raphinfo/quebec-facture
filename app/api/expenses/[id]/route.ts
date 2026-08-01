@@ -6,7 +6,7 @@ const sql = neon(process.env.DATABASE_URL!);
 
 export async function DELETE(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } | Promise<{ id: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -16,7 +16,9 @@ export async function DELETE(
       return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 });
     }
 
-    const { id: expenseId } = await params;
+    // Extraction sécurisée des paramètres
+    const resolvedParams = await params;
+    const expenseId = resolvedParams.id;
 
     const result = await sql`
       DELETE FROM "Expense"
