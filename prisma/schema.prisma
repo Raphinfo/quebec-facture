@@ -1,0 +1,85 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// --- ÉNUMÉRATIONS ---
+
+enum SubscriptionStatus {
+  PENDING   // En attente de paiement (statut par défaut à l'inscription)
+  ACTIVE    // Abonnement payé et actif
+  PAST_DUE  // Échec de paiement / renouvellement en retard
+  CANCELED  // Abonnement annulé
+}
+
+enum InvoiceStatus {
+  PENDING   // En attente de paiement
+  PAID      // Facture acquittée
+  CANCELED  // Facture annulée
+}
+
+// --- MODÈLES ---
+
+model User {
+  id             String    @id @default(uuid())
+  email          String    @unique
+  password       String    
+  companyName    String?   
+  neq            String?   
+  tpsNumber      String?   
+  tvqNumber      String?   
+  address        String?   
+  companyAddress String?   // Configuration émetteur
+  invoices       Invoice[]
+  clients        Client[]
+  expenses       Expense[]
+  createdAt      DateTime  @default(now())
+
+  // --- CONFIGURATION STRIPE (Mise à jour avec Enum) ---
+  subscriptionStatus SubscriptionStatus @default(PENDING) // Remplace isPaid
+  stripeCustomerId   String?            @unique // ID client Stripe (ex: cus_...)
+  stripeSubId        String?            @unique // ID abonnement Stripe (ex: sub_...)
+}
+
+model Invoice {
+  id            String        @id @default(uuid())
+  invoiceNumber String        
+  amountSubtotal Decimal      @db.Decimal(10, 2)
+  tpsAmount     Decimal       @db.Decimal(10, 2)
+  tvqAmount     Decimal       @db.Decimal(10, 2)
+  amountTotal   Decimal       @db.Decimal(10, 2)
+  items         Json          // Stockage JSON natif pour le multi-ligne
+  status        InvoiceStatus @default(PENDING) // Utilisation de l'Enum
+  createdAt     DateTime      @default(now())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientId      String        
+  client        Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+model Client {
+  id          String    @id @default(uuid())
+  name        String
+  companyName String?
+  neq         String?   // NEQ du client
+  address     String?
+  email       String?
+  phone       String?
+  userId      String    
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invoices    Invoice[] 
+  createdAt   DateTime  @default(now())
+}
+
+model Expense {
+  id          String   @id @default(uuid())
+  description String
+  amount      Decimal  @db.Decimal(10, 2)
+  category    String   // Ex: Équipement, Transport, Logiciels
+  createdAt   DateTime @default(now())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/lib/generated/prisma
+stripe_1.23.0_linux_amd64.deb
+vendor/
+composer.lock
