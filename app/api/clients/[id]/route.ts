@@ -6,7 +6,7 @@ const sql = neon(process.env.DATABASE_URL!);
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } | Promise<{ id: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -16,9 +16,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 });
     }
 
-    const clientId = params.id;
+    // Resolution hybride du paramètre id
+    const resolvedParams = await params;
+    const clientId = resolvedParams.id;
 
-    // Suppression sécurisée : le client doit appartenir à l'utilisateur connecté
     await sql`
       DELETE FROM "Client" 
       WHERE "id" = ${clientId} AND "userId" = ${userId}
