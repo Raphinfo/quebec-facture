@@ -2,7 +2,11 @@ import { NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
 import { cookies } from 'next/headers';
 
-const sql = neon(process.env.DATABASE_URL!);
+export const dynamic = 'force-dynamic';
+
+// Fallback sécurisé pour empêcher le crash "Failed to collect page data" lors du build Vercel
+const dbUrl = process.env.DATABASE_URL || 'postgres://placeholder:placeholder@localhost:5432/db';
+const sql = neon(dbUrl);
 
 // 1. RÉCUPÉRER LES INFOS DU PROFIL
 export async function GET() {
