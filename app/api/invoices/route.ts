@@ -3,7 +3,11 @@ import { neon } from '@neondatabase/serverless';
 import { cookies } from 'next/headers';
 import { v4 as uuidv4 } from 'uuid';
 
-const sql = neon(process.env.DATABASE_URL!);
+export const dynamic = 'force-dynamic';
+
+// Fallback sécurisé pour empêcher le crash "Failed to collect page data" lors du build Vercel
+const dbUrl = process.env.DATABASE_URL || 'postgres://placeholder:placeholder@localhost:5432/db';
+const sql = neon(dbUrl);
 
 // 1. CRÉATION D'UNE FACTURE
 export async function POST(request: Request) {

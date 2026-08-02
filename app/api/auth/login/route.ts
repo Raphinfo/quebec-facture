@@ -6,7 +6,9 @@ import bcrypt from 'bcryptjs';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const sql = neon(process.env.DATABASE_URL!);
+// Fallback sécurisé pour empêcher le crash au moment du build Next.js / Vercel
+const dbUrl = process.env.DATABASE_URL || 'postgres://placeholder:placeholder@localhost:5432/db';
+const sql = neon(dbUrl);
 
 export async function POST(request: Request) {
   try {

@@ -4,7 +4,9 @@ import { cookies } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
 
-const sql = neon(process.env.DATABASE_URL!);
+// Fallback sécurisé pour empêcher le crash "Failed to collect page data" lors du build Vercel
+const dbUrl = process.env.DATABASE_URL || 'postgres://placeholder:placeholder@localhost:5432/db';
+const sql = neon(dbUrl);
 
 export async function DELETE(
   request: Request,
@@ -18,7 +20,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 });
     }
 
-    // Resolution hybride du paramètre id
+    // Résolution hybride du paramètre id
     const resolvedParams = await params;
     const clientId = resolvedParams.id;
 

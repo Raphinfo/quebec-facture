@@ -2,7 +2,11 @@ import { NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
 import { cookies } from 'next/headers';
 
-const sql = neon(process.env.DATABASE_URL!);
+export const dynamic = 'force-dynamic';
+
+// Fallback sécurisé pour empêcher le crash "Failed to collect page data" au build
+const dbUrl = process.env.DATABASE_URL || 'postgres://placeholder:placeholder@localhost:5432/db';
+const sql = neon(dbUrl);
 
 // 1. RÉCUPÉRER LES CLIENTS
 export async function GET() {
@@ -23,7 +27,7 @@ export async function GET() {
     return NextResponse.json(clients, { status: 200 });
   } catch (error: any) {
     console.error("❌ Erreur GET /api/clients :", error.message);
-    return NextResponse.json([], { status: 200 }); // Retourne un tableau vide pour éviter de faire planter le UI
+    return NextResponse.json([], { status: 200 }); // Retourne un tableau vide pour éviter de faire planter l'UI
   }
 }
 
