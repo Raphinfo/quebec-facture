@@ -1,12 +1,9 @@
 import { NextResponse } from 'next/server';
-import { neon } from '@neondatabase/serverless';
 import { cookies } from 'next/headers';
+import { getDb } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
-
-// Fallback sécurisé pour empêcher le crash "Failed to collect page data" lors du build Vercel
-const dbUrl = process.env.DATABASE_URL || 'postgres://placeholder:placeholder@localhost:5432/db';
-const sql = neon(dbUrl);
+export const runtime = 'nodejs';
 
 export async function DELETE(
   request: Request,
@@ -20,9 +17,12 @@ export async function DELETE(
       return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 });
     }
 
-    // Résolution hybride du paramètre id
+    // Résolution hybride du paramètre id (Next.js 15+)
     const resolvedParams = await params;
     const clientId = resolvedParams.id;
+
+    // Instance DB exécutée uniquement lors de l'appel de la route
+    const sql = getDb();
 
     await sql`
       DELETE FROM "Client" 

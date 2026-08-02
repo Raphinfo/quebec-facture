@@ -1,12 +1,9 @@
 import { NextResponse } from 'next/server';
-import { neon } from '@neondatabase/serverless';
 import { cookies } from 'next/headers';
+import { getDb } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
-
-// Fallback sécurisé pour empêcher le crash "Failed to collect page data" lors du build Vercel
-const dbUrl = process.env.DATABASE_URL || 'postgres://placeholder:placeholder@localhost:5432/db';
-const sql = neon(dbUrl);
+export const runtime = 'nodejs';
 
 // 1. MODIFICATION DU STATUT
 export async function PATCH(
@@ -29,6 +26,8 @@ export async function PATCH(
     if (!status) {
       return NextResponse.json({ error: 'Statut manquant.' }, { status: 400 });
     }
+
+    const sql = getDb(); // Instanciation lazy à la volée
 
     await sql`
       UPDATE "Invoice"
@@ -60,6 +59,8 @@ export async function DELETE(
     // Extraction sécurisée des paramètres
     const resolvedParams = await params;
     const invoiceId = resolvedParams.id;
+
+    const sql = getDb(); // Instanciation lazy à la volée
 
     const result = await sql`
       DELETE FROM "Invoice"

@@ -1,12 +1,9 @@
 import { NextResponse } from 'next/server';
-import { neon } from '@neondatabase/serverless';
 import { cookies } from 'next/headers';
+import { getDb } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
-
-// Fallback sécurisé pour éviter les erreurs lors du build statique Vercel
-const dbUrl = process.env.DATABASE_URL || 'postgres://placeholder:placeholder@localhost:5432/db';
-const sql = neon(dbUrl);
+export const runtime = 'nodejs';
 
 // 1. RÉCUPÉRER LES DÉPENSES
 export async function GET() {
@@ -18,6 +15,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 });
     }
 
+    const sql = getDb(); // Instanciation lazy
     const expenses = await sql`
       SELECT id, description, amount, category, "createdAt"
       FROM "Expense"
@@ -50,6 +48,7 @@ export async function POST(request: Request) {
     }
 
     const parsedAmount = parseFloat(amount);
+    const sql = getDb(); // Instanciation lazy
 
     await sql`
       INSERT INTO "Expense" (id, description, amount, category, "userId")

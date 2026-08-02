@@ -1,12 +1,9 @@
 import { NextResponse } from 'next/server';
-import { neon } from '@neondatabase/serverless';
 import { cookies } from 'next/headers';
+import { getDb } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
-
-// Fallback sécurisé pour empêcher le crash "Failed to collect page data" au build
-const dbUrl = process.env.DATABASE_URL || 'postgres://placeholder:placeholder@localhost:5432/db';
-const sql = neon(dbUrl);
+export const runtime = 'nodejs';
 
 // 1. RÉCUPÉRER LES CLIENTS
 export async function GET() {
@@ -18,6 +15,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 });
     }
 
+    const sql = getDb(); // Instanciation lazy
     const clients = await sql`
       SELECT * FROM "Client"
       WHERE "userId" = ${userId}
@@ -27,7 +25,7 @@ export async function GET() {
     return NextResponse.json(clients, { status: 200 });
   } catch (error: any) {
     console.error("❌ Erreur GET /api/clients :", error.message);
-    return NextResponse.json([], { status: 200 }); // Retourne un tableau vide pour éviter de faire planter l'UI
+    return NextResponse.json([], { status: 200 });
   }
 }
 
@@ -43,7 +41,7 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     
-    // Si c'est juste un ping de vérification de session (body vide)
+    // Ping de vérification de session (body vide)
     if (!body || Object.keys(body).length === 0) {
       return NextResponse.json({ ok: true }, { status: 200 });
     }
@@ -54,10 +52,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Le nom du client est obligatoire.' }, { status: 400 });
     }
 
-    // Insertion flexible (gère les colonnes existantes)
+    const sql = getDb(); // Instanciation lazy
+
     await sql`
-      INSERT INTO "Client" ("userId", "name", "company", "email")
-      VALUES (${userId}, ${name}, ${company || null}, ${email || address || null})
+      INSERT INTO "Client" ("userId", "name", "company", "neq", "address", "email", "phone")
+      VALUES (
+        ${userId}, 
+        ${name}, 
+        ${company || null}, 
+        ${neq || null}, 
+        ${address || null}, 
+        ${email || null}, 
+        ${phone || null}
+      )
     `;
 
     return NextResponse.json({ message: 'Client ajouté avec succès !' }, { status: 201 });

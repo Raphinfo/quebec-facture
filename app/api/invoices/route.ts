@@ -1,13 +1,10 @@
 import { NextResponse } from 'next/server';
-import { neon } from '@neondatabase/serverless';
 import { cookies } from 'next/headers';
 import { v4 as uuidv4 } from 'uuid';
+import { getDb } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
-
-// Fallback sécurisé pour empêcher le crash "Failed to collect page data" lors du build Vercel
-const dbUrl = process.env.DATABASE_URL || 'postgres://placeholder:placeholder@localhost:5432/db';
-const sql = neon(dbUrl);
+export const runtime = 'nodejs';
 
 // 1. CRÉATION D'UNE FACTURE
 export async function POST(request: Request) {
@@ -18,6 +15,8 @@ export async function POST(request: Request) {
     if (!userId) {
       return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 });
     }
+
+    const sql = getDb(); // Instanciation lazy au moment de la requête
 
     // 🔒 VÉRIFICATION DU PLAN UTILISATEUR & DE LA LIMITE DE FACTURES
     const userResult = await sql`
@@ -135,6 +134,8 @@ export async function GET() {
     if (!userId) {
       return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 });
     }
+
+    const sql = getDb(); // Instanciation lazy au moment de la requête
 
     const invoices = await sql`
       SELECT 
