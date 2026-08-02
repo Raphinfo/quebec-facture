@@ -1,15 +1,9 @@
 import { NextResponse } from 'next/server';
-import { neon } from '@neondatabase/serverless';
 import bcrypt from 'bcryptjs';
+import { getDb } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-
-// Helper pour obtenir l'instance SQL uniquement à l'exécution de la requête (lazy loading)
-function getDb() {
-  const dbUrl = process.env.DATABASE_URL || 'postgresql://user:pass@ep-placeholder-123456.us-east-1.aws.neon.tech/neondb';
-  return neon(dbUrl);
-}
 
 export async function POST(request: Request) {
   try {
@@ -19,12 +13,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Champs manquants' }, { status: 400 });
     }
 
-    console.log("=== TENTATIVE DE CONNEXION CÔTÉ SERVEUR ===");
-
-    // Instanciation de la DB au moment précis où la requête POST est appelée
     const sql = getDb();
-
-    // 1. Chercher l'utilisateur par e-mail
     const users = await sql`SELECT * FROM "User" WHERE email = ${email}`;
 
     if (users.length === 0) {
@@ -32,23 +21,17 @@ export async function POST(request: Request) {
     }
 
     const user = users[0];
-
-    // 2. Vérifier le mot de passe haché avec Bcrypt
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
       return NextResponse.json({ error: 'Identifiants incorrects' }, { status: 401 });
     }
 
-    console.log("=== CONNEXION RÉUSSIE POUR :", user.email);
-
-    // Création de la réponse
     const response = NextResponse.json({
       message: 'Connexion réussie',
       user: { id: user.id, email: user.email }
     }, { status: 200 });
 
-    // Stockage de l'ID utilisateur dans un cookie sécurisé (7 jours)
     response.cookies.set('user_session', user.id, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -57,10 +40,8 @@ export async function POST(request: Request) {
     });
 
     return response;
-
   } catch (error: any) {
-    console.error("=== ERREUR CRITIQUE LOGIN ===");
-    console.error("Message :", error.message);
+    console.error("=== ERREUR CRITIQUE LOGIN ===", error.message);
     return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 });
   }
 }
