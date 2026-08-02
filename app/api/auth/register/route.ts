@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
-import bcrypt from 'bcrypt';
-import crypto from 'crypto'; // Module natif de Node.js pour générer l'UUID
+import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
+
+// Empêche Next.js d'évaluer la route statiquement au moment du build
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 const sql = neon(process.env.DATABASE_URL!);
 
@@ -22,7 +26,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Cet email est déjà utilisé' }, { status: 400 });
     }
 
-    // 2. Hachage du mot de passe
+    // 2. Hachage du mot de passe avec bcryptjs
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // 3. Génération d'un UUID unique pour la colonne "id"
