@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
+
+// Indiquer à Next.js/Vercel de ne pas pré-évaluer cette route au build
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 const sql = neon(process.env.DATABASE_URL!);
 
@@ -30,7 +34,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Identifiants incorrects' }, { status: 401 });
     }
 
-console.log("=== CONNEXION RÉUSSIE POUR :", user.email);
+    console.log("=== CONNEXION RÉUSSIE POUR :", user.email);
 
     // Création de la réponse
     const response = NextResponse.json({
@@ -38,11 +42,11 @@ console.log("=== CONNEXION RÉUSSIE POUR :", user.email);
       user: { id: user.id, email: user.email }
     }, { status: 200 });
 
-    // On stocke l'ID de l'utilisateur dans un cookie sécurisé (expire dans 7 jours)
+    // Stockage de l'ID utilisateur dans un cookie sécurisé (7 jours)
     response.cookies.set('user_session', user.id, {
-      httpOnly: true, // Sécurité : invisible en JavaScript côté client
+      httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      maxAge: 60 * 60 * 24 * 7, // 1 semaine
+      maxAge: 60 * 60 * 24 * 7,
       path: '/',
     });
 
