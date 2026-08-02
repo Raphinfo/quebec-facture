@@ -2,8 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { neon } from "@neondatabase/serverless";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
-const sql = neon(process.env.DATABASE_URL!);
+export const dynamic = "force-dynamic";
+
+// Fallbacks pour éviter les erreurs "Failed to collect page data" pendant le build Vercel
+const stripeKey = process.env.STRIPE_SECRET_KEY || "sk_test_placeholder_key_for_build";
+const dbUrl = process.env.DATABASE_URL || "postgres://placeholder:placeholder@localhost:5432/db";
+
+const stripe = new Stripe(stripeKey);
+const sql = neon(dbUrl);
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
