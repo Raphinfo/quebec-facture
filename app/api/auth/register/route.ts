@@ -1,13 +1,11 @@
 import { NextResponse } from 'next/server';
-import { neon } from '@neondatabase/serverless';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import { getDb } from '@/lib/db'; // 👈 On utilise le helper lazy-loading
 
 // Empêche Next.js d'évaluer la route statiquement au moment du build
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-
-const sql = neon(process.env.DATABASE_URL!);
 
 export async function POST(request: Request) {
   try {
@@ -18,6 +16,9 @@ export async function POST(request: Request) {
     }
 
     console.log("=== INSCRIPTION VIA DRIVER NATIF NEON SQL ===");
+
+    // Instanciation de la DB uniquement lors de l'exécution de la requête
+    const sql = getDb();
 
     // 1. Recherche de l'utilisateur existant
     const users = await sql`SELECT * FROM "User" WHERE email = ${email}`;
