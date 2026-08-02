@@ -2,13 +2,14 @@ import { NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
 import bcrypt from 'bcryptjs';
 
-// Indiquer à Next.js/Vercel de ne pas pré-évaluer cette route au build
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-// Fallback au format Neon valide pour passer l'analyse syntaxique du build Vercel
-const dbUrl = process.env.DATABASE_URL || 'postgresql://user:pass@ep-placeholder-123456.us-east-1.aws.neon.tech/neondb';
-const sql = neon(dbUrl);
+// Helper pour obtenir l'instance SQL uniquement à l'exécution de la requête (lazy loading)
+function getDb() {
+  const dbUrl = process.env.DATABASE_URL || 'postgresql://user:pass@ep-placeholder-123456.us-east-1.aws.neon.tech/neondb';
+  return neon(dbUrl);
+}
 
 export async function POST(request: Request) {
   try {
@@ -19,6 +20,9 @@ export async function POST(request: Request) {
     }
 
     console.log("=== TENTATIVE DE CONNEXION CÔTÉ SERVEUR ===");
+
+    // Instanciation de la DB au moment précis où la requête POST est appelée
+    const sql = getDb();
 
     // 1. Chercher l'utilisateur par e-mail
     const users = await sql`SELECT * FROM "User" WHERE email = ${email}`;
