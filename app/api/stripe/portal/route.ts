@@ -5,12 +5,19 @@ import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
-// Fallbacks pour éviter les erreurs "Failed to collect page data" pendant le build Vercel
-const stripeKey = process.env.STRIPE_SECRET_KEY || "sk_test_placeholder_key_for_build";
-const dbUrl = process.env.DATABASE_URL || "postgres://placeholder:placeholder@localhost:5432/db";
+// Helper pour initialiser Neon uniquement à l'exécution
+function getDb() {
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) throw new Error("DATABASE_URL est manquante.");
+  return neon(dbUrl);
+}
 
-const stripe = new Stripe(stripeKey);
-const sql = neon(dbUrl);
+// Helper pour initialiser Stripe uniquement à l'exécution
+function getStripe() {
+  const stripeKey = process.env.STRIPE_SECRET_KEY;
+  if (!stripeKey) throw new Error("STRIPE_SECRET_KEY est manquante.");
+  return new Stripe(stripeKey);
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,7 +28,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
     }
 
-    // 1. Récupérer l'utilisateur
+    // 1. Initialiser la BDD et Stripe ici (au runtime)
+    const sql = getDb();
+    const stripe = getStripe();
+
+    // 2. Récupérer l'utilisateur
     const users = await sql`
       SELECT email, "stripeCustomerId" 
       FROM "User" 
@@ -36,7 +47,7 @@ export async function POST(req: NextRequest) {
 
     let customerId = user.stripeCustomerId;
 
-    // 2. Si pas d'ID Stripe, on en crée un automatiquement chez Stripe
+    // 3. Si pas d'ID Stripe, on en crée un automatiquement chez Stripe
     if (!customerId) {
       const customer = await stripe.customers.create({
         email: user.email,
@@ -51,7 +62,7 @@ export async function POST(req: NextRequest) {
       `;
     }
 
-    // 3. Créer la session du Portail Client
+    // 4. Créer la session du Portail Client
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: customerId,
       return_url: `${req.nextUrl.origin}/dashboard`,
