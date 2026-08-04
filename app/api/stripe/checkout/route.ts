@@ -5,12 +5,19 @@ import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
-// Fallbacks pour éviter les erreurs "Failed to collect page data" pendant le build Vercel
-const stripeKey = process.env.STRIPE_SECRET_KEY || "sk_test_placeholder_key_for_build";
-const dbUrl = process.env.DATABASE_URL || "postgres://placeholder:placeholder@localhost:5432/db";
+// Helper pour initialiser Neon uniquement à l'exécution
+function getDb() {
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) throw new Error("DATABASE_URL est manquante.");
+  return neon(dbUrl);
+}
 
-const stripe = new Stripe(stripeKey);
-const sql = neon(dbUrl);
+// Helper pour initialiser Stripe uniquement à l'exécution
+function getStripe() {
+  const stripeKey = process.env.STRIPE_SECRET_KEY;
+  if (!stripeKey) throw new Error("STRIPE_SECRET_KEY est manquante.");
+  return new Stripe(stripeKey);
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,7 +28,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
     }
 
-    // 1. Récupérer l'utilisateur dans Neon
+    // 1. Initialiser la BDD et Stripe ici (au runtime)
+    const sql = getDb();
+    const stripe = getStripe();
+
+    // 2. Récupérer l'utilisateur dans Neon
     const users = await sql`
       SELECT email, "stripeCustomerId" 
       FROM "User" 
@@ -34,7 +45,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Utilisateur introuvable." }, { status: 404 });
     }
 
-    // 2. Préparer la configuration de la session Checkout
+    // 3. Préparer la configuration de la session Checkout
     const sessionConfig: Stripe.Checkout.SessionCreateParams = {
       payment_method_types: ["card"],
       line_items: [
@@ -48,14 +59,14 @@ export async function POST(req: NextRequest) {
       cancel_url: `${req.nextUrl.origin}/dashboard?canceled=true`,
     };
 
-    // 3. Associer le client existant ou pré-remplir avec son email
+    // 4. Associer le client existant ou pré-remplir avec son email
     if (user.stripeCustomerId) {
       sessionConfig.customer = user.stripeCustomerId;
     } else {
       sessionConfig.customer_email = user.email;
     }
 
-    // 4. Créer la session Stripe Checkout
+    // 5. Créer la session Stripe Checkout
     const checkoutSession = await stripe.checkout.sessions.create(sessionConfig);
 
     return NextResponse.json({ url: checkoutSession.url }, { status: 200 });
