@@ -4,9 +4,14 @@ import { cookies } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
 
-// Fallback sécurisé pour empêcher le crash "Failed to collect page data" lors du build Vercel
-const dbUrl = process.env.DATABASE_URL || 'postgres://placeholder:placeholder@localhost:5432/db';
-const sql = neon(dbUrl);
+// Helper pour récupérer l'instance Neon à l'exécution de la requête uniquement
+function getDb() {
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) {
+    throw new Error("DATABASE_URL n'est pas définie dans les variables d'environnement.");
+  }
+  return neon(dbUrl);
+}
 
 // 1. RÉCUPÉRER LES INFOS DU PROFIL
 export async function GET() {
@@ -17,6 +22,8 @@ export async function GET() {
     if (!userId) {
       return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 });
     }
+
+    const sql = getDb();
 
     try {
       // 🟢 AJOUT DE "plan" DANS LE SELECT SQL
@@ -71,6 +78,8 @@ export async function PUT(request: Request) {
 
     const body = await request.json();
     const { companyName, companyAddress, tpsNumber, tvqNumber, companyLogo } = body;
+
+    const sql = getDb();
 
     await sql`
       UPDATE "User"
