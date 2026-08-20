@@ -20,82 +20,63 @@ export async function GET() {
     const userId = cookieStore.get('user_session')?.value;
 
     if (!userId) {
-      return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 });
+      return NextResponse.json(
+        { error: 'Non autorisé.' },
+        { status: 401 }
+      );
     }
 
     const sql = getDb();
 
-    try {
-      // 🟢 AJOUT DE "plan" DANS LE SELECT SQL
-      const users = await sql`
-        SELECT "companyName", "companyAddress", "tpsNumber", "tvqNumber", "companyLogo", "subscriptionStatus", "plan"
-        FROM "User"
-        WHERE id = ${userId}
-        LIMIT 1
-      `;
-
-      if (users && users.length > 0) {
-        return NextResponse.json({
-          ...users[0],
-          subscriptionStatus: users[0].subscriptionStatus || 'ACTIVE',
-          plan: users[0].plan || 'FREE' // 👈 Renvoie le plan ('FREE' par défaut s'il est vide)
-        }, { status: 200 });
-      }
-    } catch (sqlError: any) {
-      console.warn("⚠️ Erreur SQL GET /api/profile :", sqlError.message);
-      
-      const basicUsers = await sql`
-        SELECT "companyName", "companyAddress", "tpsNumber", "tvqNumber"
-        FROM "User"
-        WHERE id = ${userId}
-        LIMIT 1
-      `;
-
-      return NextResponse.json({
-        ...(basicUsers[0] || {}),
-        subscriptionStatus: 'ACTIVE',
-        plan: 'FREE'
-      }, { status: 200 });
-    }
-
-    return NextResponse.json({ subscriptionStatus: 'ACTIVE', plan: 'FREE' }, { status: 200 });
-
-  } catch (error: any) {
-    console.error("❌ Erreur serveur GET /api/profile :", error.message);
-    return NextResponse.json({ subscriptionStatus: 'ACTIVE', plan: 'FREE' }, { status: 200 });
-  }
-}
-
-// 2. METTRE À JOUR LES INFOS DU PROFIL (Inclus companyLogo)
-export async function PUT(request: Request) {
-  try {
-    const cookieStore = await cookies();
-    const userId = cookieStore.get('user_session')?.value;
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 });
-    }
-
-    const body = await request.json();
-    const { companyName, companyAddress, tpsNumber, tvqNumber, companyLogo } = body;
-
-    const sql = getDb();
-
-    await sql`
-      UPDATE "User"
-      SET 
-        "companyName" = ${companyName || null},
-        "companyAddress" = ${companyAddress || null},
-        "tpsNumber" = ${tpsNumber || null},
-        "tvqNumber" = ${tvqNumber || null},
-        "companyLogo" = ${companyLogo || null}
+    const users = await sql`
+      SELECT
+        id,
+        email,
+        "companyName",
+        "companyAddress",
+        "tpsNumber",
+        "tvqNumber",
+        "companyLogo",
+        "subscriptionStatus",
+        "plan"
+      FROM "User"
       WHERE id = ${userId}
+      LIMIT 1
     `;
 
-    return NextResponse.json({ message: 'Profil mis à jour avec succès !' }, { status: 200 });
+    if (!users || users.length === 0) {
+      return NextResponse.json(
+        { error: 'Session invalide.' },
+        { status: 401 }
+      );
+    }
+
+    const user = users[0];
+
+    return NextResponse.json(
+      {
+        id: user.id,
+        email: user.email,
+        companyName: user.companyName || '',
+        companyAddress: user.companyAddress || '',
+        tpsNumber: user.tpsNumber || '',
+        tvqNumber: user.tvqNumber || '',
+        companyLogo: user.companyLogo || '',
+        subscriptionStatus: user.subscriptionStatus || null,
+        plan: user.plan || 'FREE',
+      },
+      { status: 200 }
+    );
 
   } catch (error: any) {
-    console.error("❌ Erreur PUT /api/profile :", error.message);
-    return NextResponse.json({ error: error.message || 'Erreur lors de la sauvegarde.' }, { status: 500 });
+    console.error(
+      '❌ Erreur serveur GET /api/profile :',
+      error.message
+    );
+
+    return NextResponse.json(
+      { error: 'Erreur serveur.' },
+      { status: 500 }
+    );
   }
 }

@@ -1,9 +1,9 @@
 "use client";
-
+import { Suspense } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
-export default function Sidebar() {
+function SidebarContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const currentTab = searchParams.get("tab");
@@ -97,5 +97,12 @@ export default function Sidebar() {
         </div>
       </div>
     </aside>
+  );
+}
+export default function Sidebar() {
+  return (
+    <Suspense fallback={null}>
+      <SidebarContent />
+    </Suspense>
   );
 }

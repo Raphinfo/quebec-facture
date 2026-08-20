@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import DashboardHeader from '@/components/DashboardHeader';
@@ -13,7 +13,7 @@ interface Expense {
   createdAt: string;
 }
 
-export default function DashboardPage() {
+function DashboardContent() {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
 
@@ -202,48 +202,56 @@ export default function DashboardPage() {
   };
 
   // Vérification de session
-  useEffect(() => {
-    const verifySession = async () => {
-      try {
-        const clientRes = await fetch('/api/clients', { method: 'POST', body: JSON.stringify({}) });
-        if (clientRes.status === 401) {
-          setAuthorized(false);
-          return;
-        }
+ useEffect(() => {
+  const verifySession = async () => {
+    try {
+      const profileRes = await fetch('/api/profile', {
+        method: 'GET',
+        credentials: 'include',
+      });
 
-        const profileRes = await fetch('/api/profile');
-        if (profileRes.ok) {
-          const profile = await profileRes.json();
-          if (profile.subscriptionStatus === 'ACTIVE') {
-            setAuthorized(true);
-            setUserPlan(profile.plan || 'FREE');
-
-            setUserProfile({
-              companyName: profile.companyName || '',
-              companyAddress: profile.companyAddress || '',
-              tpsNumber: profile.tpsNumber || '',
-              tvqNumber: profile.tvqNumber || '',
-              companyLogo: profile.companyLogo || ''
-            });
-
-            fetchClients();
-            fetchInvoices();
-            fetchExpenses();
-          } else {
-            setAuthorized(false);
-          }
-        } else {
-          setAuthorized(false);
-        }
-      } catch {
+      if (profileRes.status === 401) {
         setAuthorized(false);
-      } finally {
-        setCheckingAuth(false);
+        return;
       }
-    };
 
-    verifySession();
-  }, []);
+      if (!profileRes.ok) {
+        setAuthorized(false);
+        return;
+      }
+
+      const profile = await profileRes.json();
+
+      // L'utilisateur est connecté.
+      // Son abonnement ne détermine PAS son authentification.
+      setAuthorized(true);
+
+      setUserPlan(profile.plan || 'FREE');
+
+      setUserProfile({
+        companyName: profile.companyName || '',
+        companyAddress: profile.companyAddress || '',
+        tpsNumber: profile.tpsNumber || '',
+        tvqNumber: profile.tvqNumber || '',
+        companyLogo: profile.companyLogo || '',
+      });
+
+      await Promise.all([
+        fetchClients(),
+        fetchInvoices(),
+        fetchExpenses(),
+      ]);
+
+    } catch (error) {
+      console.error('Erreur vérification session :', error);
+      setAuthorized(false);
+    } finally {
+      setCheckingAuth(false);
+    }
+  };
+
+  verifySession();
+}, []);
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1004,5 +1012,19 @@ export default function DashboardPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <div style={{ padding: '40px', fontFamily: 'sans-serif' }}>
+          Chargement du tableau de bord...
+        </div>
+      }
+    >
+      <DashboardContent />
+    </Suspense>
   );
 }
