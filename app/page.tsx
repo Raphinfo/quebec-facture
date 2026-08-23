@@ -9,81 +9,56 @@ export default function RegisterPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setError('');
-  setLoading(true);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
 
-  try {
-    // 1. Inscription de l'utilisateur
-    const res = await fetch('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      });
 
-    const data = await res.json();
+      const data = await res.json();
 
-    if (!res.ok) {
-      throw new Error(
-        data.error || "Une erreur est survenue lors de l'inscription"
-      );
+      if (!res.ok) {
+        throw new Error(
+          data.error || "Une erreur est survenue lors de l'inscription"
+        );
+      }
+
+      window.location.href = '/choose-plan';
+
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Une erreur inattendue est survenue.');
+      }
+    } finally {
+      setLoading(false);
     }
-
-    // 2. Création de la session Stripe Checkout
-    const stripeRes = await fetch('/api/stripe/checkout', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email }),
-    });
-
-    const contentType = stripeRes.headers.get('content-type');
-
-    if (!contentType?.includes('application/json')) {
-      const text = await stripeRes.text();
-
-      console.error('Réponse Stripe non JSON :', text);
-
-      throw new Error(
-        "Le serveur Stripe a retourné une réponse inattendue."
-      );
-    }
-
-    const stripeData = await stripeRes.json();
-
-    if (!stripeRes.ok) {
-      throw new Error(
-        stripeData.error || "Impossible d'initier le paiement Stripe"
-      );
-    }
-
-    if (!stripeData.url) {
-      throw new Error(
-        "Stripe n'a retourné aucune URL de paiement."
-      );
-    }
-
-    window.location.href = stripeData.url;
-
-  } catch (err: unknown) {
-    if (err instanceof Error) {
-      setError(err.message);
-    } else {
-      setError('Une erreur inattendue est survenue.');
-    }
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-6 bg-gray-50">
       <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-xl shadow-md border border-gray-100">
+
         <div className="text-center">
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Créer un compte</h1>
-          <p className="mt-2 text-sm text-gray-600">Simplifiez la gestion de vos factures au Québec</p>
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+            Créer un compte
+          </h1>
+
+          <p className="mt-2 text-sm text-gray-600">
+            Simplifiez la gestion de vos factures au Québec
+          </p>
         </div>
 
         {error && (
@@ -92,9 +67,15 @@ const handleSubmit = async (e: React.FormEvent) => {
           </div>
         )}
 
-        <form className="space-y-4" onSubmit={handleSubmit}>
+        <form
+          className="space-y-4"
+          onSubmit={handleSubmit}
+        >
           <div>
-            <label className="block text-sm font-medium text-gray-700">Adresse courriel</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Adresse courriel
+            </label>
+
             <input
               type="email"
               required
@@ -106,7 +87,10 @@ const handleSubmit = async (e: React.FormEvent) => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Mot de passe</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Mot de passe
+            </label>
+
             <input
               type="password"
               required
@@ -122,16 +106,21 @@ const handleSubmit = async (e: React.FormEvent) => {
             disabled={loading}
             className="w-full py-2 px-4 text-white bg-blue-600 hover:bg-blue-700 rounded-lg font-medium shadow transition duration-150 ease-in-out disabled:opacity-50"
           >
-            {loading ? 'Création de l\'abonnement...' : "S'inscrire et s'abonner"}
+            {loading ? 'Création du compte...' : 'Créer mon compte'}
           </button>
         </form>
 
         <p className="text-center text-sm text-gray-600">
           Vous avez déjà un compte ?{' '}
-          <Link href="/login" className="font-medium text-blue-600 hover:underline">
+
+          <Link
+            href="/login"
+            className="font-medium text-blue-600 hover:underline"
+          >
             Se connecter
           </Link>
         </p>
+
       </div>
     </div>
   );
