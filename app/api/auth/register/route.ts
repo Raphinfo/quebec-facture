@@ -45,35 +45,34 @@ export async function POST(request: Request) {
     // UUID utilisateur
     const userId = crypto.randomUUID();
 
-    // Création de l'utilisateur
     const result = await sql`
-      INSERT INTO "User" (
-        id,
-        email,
-        password
-      )
-      VALUES (
-        ${userId},
-        ${normalizedEmail},
-        ${hashedPassword}
-      )
-      RETURNING id, email
-    `;
+  INSERT INTO "User" (id, email, password)
+  VALUES (${userId}, ${email}, ${hashedPassword})
+  RETURNING id, email
+`;
 
-    console.log(
-      '=== SUCCÈS SQL NATIF : Utilisateur inséré :',
-      result[0]
-    );
+console.log(
+  "=== SUCCÈS SQL NATIF : Utilisateur inséré :",
+  result[0]
+);
 
-    // Création de la réponse
-    const response = NextResponse.json(
-      {
-        message: 'Utilisateur créé avec succès',
-        userId: result[0].id,
-      },
-      { status: 201 }
-    );
+const response = NextResponse.json(
+  {
+    message: 'Utilisateur créé avec succès',
+    userId: result[0].id
+  },
+  { status: 201 }
+);
 
+response.cookies.set('user_session', result[0].id, {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax',
+  path: '/',
+  maxAge: 60 * 60 * 24 * 7,
+});
+
+return response;
     // IMPORTANT :
     // connecter automatiquement l'utilisateur après son inscription
     response.cookies.set(
