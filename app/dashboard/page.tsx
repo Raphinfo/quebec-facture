@@ -862,7 +862,7 @@ function DashboardContent() {
             <div style={{ flex: '1', backgroundColor: '#ffffff', border: '2px solid #3182ce', borderRadius: '12px', padding: '30px', boxShadow: '0 10px 15px -3px rgba(49, 130, 206, 0.1)' }}>
               <span style={{ backgroundColor: '#ebf8ff', color: '#3182ce', border: '1px solid #bee3f8', padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold' }}>RECOMMANDÉ</span>
               <h3 style={{ fontSize: '22px', margin: '15px 0 10px 0', color: '#2d3748' }}>Plan Professionnel</h3>
-              <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#2b6cb0', marginBottom: '20px' }}>14,99 $ <span style={{ fontSize: '14px', color: '#a0aec0', fontWeight: 'normal' }}>/ mois</span></div>
+              <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#2b6cb0', marginBottom: '20px' }}>15 $ <span style={{ fontSize: '14px', color: '#a0aec0', fontWeight: 'normal' }}>/ mois</span></div>
               <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 30px 0', fontSize: '14px', color: '#4a5568', lineHeight: '2' }}>
                 <li>⚡ <strong>Factures Illimitées</strong></li>
                 <li>⚡ Gestion des clients & NEQ</li>
@@ -875,7 +875,7 @@ function DashboardContent() {
                 </button>
               ) : (
                 <button onClick={handleSubscribePro} style={{ width: '100%', padding: '12px', backgroundColor: '#3182ce', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '15px', cursor: 'pointer' }}>
-                  Passer au Plan Pro (14,99 $)
+                  Passer au Plan Pro (15 $)
                 </button>
               )}
             </div>

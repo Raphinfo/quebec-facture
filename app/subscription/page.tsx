@@ -90,7 +90,7 @@ export default function SubscriptionTab() {
           </span>
           <h3 style={{ fontSize: '22px', margin: '15px 0 10px 0', color: '#2d3748' }}>Plan Professionnel</h3>
           <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#2b6cb0', marginBottom: '20px' }}>
-            14,99 $ <span style={{ fontSize: '14px', color: '#a0aec0', fontWeight: 'normal' }}>/ mois</span>
+            15 $ <span style={{ fontSize: '14px', color: '#a0aec0', fontWeight: 'normal' }}>/ mois</span>
           </div>
 
           <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 30px 0', fontSize: '14px', color: '#4a5568', lineHeight: '2' }}>
@@ -116,7 +116,7 @@ export default function SubscriptionTab() {
               boxShadow: '0 4px 6px rgba(49, 130, 206, 0.2)'
             }}
           >
-            Passer au Plan Pro (14,99 $)
+            Passer au Plan Pro (15 $)
           </button>
         </div>
 
