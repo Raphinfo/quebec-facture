@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { getDb } from '@/lib/db'; // 👈 On utilise le helper lazy-loading
+import { getDb } from '@/lib/db';
 
-// Empêche Next.js d'évaluer la route statiquement au moment du build
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -12,40 +11,95 @@ export async function POST(request: Request) {
     const { email, password } = await request.json();
 
     if (!email || !password) {
-      return NextResponse.json({ error: 'Champs manquants' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Champs manquants' },
+        { status: 400 }
+      );
     }
 
-    console.log("=== INSCRIPTION VIA DRIVER NATIF NEON SQL ===");
+    // Normaliser l'adresse email
+    const normalizedEmail = email.trim().toLowerCase();
 
-    // Instanciation de la DB uniquement lors de l'exécution de la requête
+    console.log('=== INSCRIPTION VIA DRIVER NATIF NEON SQL ===');
+
     const sql = getDb();
 
-    // 1. Recherche de l'utilisateur existant
-    const users = await sql`SELECT * FROM "User" WHERE email = ${email}`;
-    
+    // Vérifier si l'utilisateur existe déjà
+    const users = await sql`
+      SELECT id
+      FROM "User"
+      WHERE LOWER(email) = ${normalizedEmail}
+      LIMIT 1
+    `;
+
     if (users.length > 0) {
-      return NextResponse.json({ error: 'Cet email est déjà utilisé' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Cet email est déjà utilisé' },
+        { status: 400 }
+      );
     }
 
-    // 2. Hachage du mot de passe avec bcryptjs
+    // Hachage du mot de passe
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // 3. Génération d'un UUID unique pour la colonne "id"
+    // UUID utilisateur
     const userId = crypto.randomUUID();
 
-    // 4. Insertion brute en incluant l'id généré
+    // Création de l'utilisateur
     const result = await sql`
-      INSERT INTO "User" (id, email, password) 
-      VALUES (${userId}, ${email}, ${hashedPassword}) 
+      INSERT INTO "User" (
+        id,
+        email,
+        password
+      )
+      VALUES (
+        ${userId},
+        ${normalizedEmail},
+        ${hashedPassword}
+      )
       RETURNING id, email
     `;
 
-    console.log("=== SUCCÈS SQL NATIF : Utilisateur inséré :", result[0]);
+    console.log(
+      '=== SUCCÈS SQL NATIF : Utilisateur inséré :',
+      result[0]
+    );
 
-    return NextResponse.json({ message: 'Utilisateur créé avec succès', userId: result[0].id }, { status: 201 });
+    // Création de la réponse
+    const response = NextResponse.json(
+      {
+        message: 'Utilisateur créé avec succès',
+        userId: result[0].id,
+      },
+      { status: 201 }
+    );
+
+    // IMPORTANT :
+    // connecter automatiquement l'utilisateur après son inscription
+    response.cookies.set(
+      'user_session',
+      result[0].id,
+      {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 7, // 7 jours
+        path: '/',
+      }
+    );
+
+    return response;
+
   } catch (error: any) {
-    console.error("=== ERREUR CRITIQUE SQL BRUT ===");
-    console.error("Message :", error.message);
-    return NextResponse.json({ error: 'Une erreur interne est survenue', details: error.message }, { status: 500 });
+    console.error('=== ERREUR CRITIQUE SQL BRUT ===');
+    console.error('Message :', error.message);
+
+    return NextResponse.json(
+      {
+        error: 'Une erreur interne est survenue',
+        details: error.message,
+      },
+      { status: 500 }
+    );
   }
 }
