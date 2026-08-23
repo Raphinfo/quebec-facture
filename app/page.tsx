@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 export default function RegisterPage() {
@@ -9,50 +8,75 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setError('');
+  setLoading(true);
 
-    try {
-      // 1. Inscription de l'utilisateur dans ta base de données
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
+  try {
+    // 1. Inscription de l'utilisateur
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
 
-      const data = await res.json();
+    const data = await res.json();
 
-      if (!res.ok) {
-        throw new Error(data.error || "Une erreur est survenue lors de l'inscription");
-      }
-
-      // 2. Création de la session de paiement Stripe (Checkout)
-      const stripeRes = await fetch('/api/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        // Optionnel : tu peux passer l'email à Stripe pour pré-remplir le formulaire de paiement !
-        body: JSON.stringify({ email }), 
-      });
-
-      const stripeData = await stripeRes.json();
-
-      if (stripeData.url) {
-        // Redirection immédiate de l'utilisateur vers Stripe pour payer son abonnement
-        window.location.href = stripeData.url;
-      } else {
-        throw new Error(stripeData.error || "Impossible d'initier le paiement Stripe");
-      }
-
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+    if (!res.ok) {
+      throw new Error(
+        data.error || "Une erreur est survenue lors de l'inscription"
+      );
     }
-  };
+
+    // 2. Création de la session Stripe Checkout
+    const stripeRes = await fetch('/api/stripe/checkout', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email }),
+    });
+
+    const contentType = stripeRes.headers.get('content-type');
+
+    if (!contentType?.includes('application/json')) {
+      const text = await stripeRes.text();
+
+      console.error('Réponse Stripe non JSON :', text);
+
+      throw new Error(
+        "Le serveur Stripe a retourné une réponse inattendue."
+      );
+    }
+
+    const stripeData = await stripeRes.json();
+
+    if (!stripeRes.ok) {
+      throw new Error(
+        stripeData.error || "Impossible d'initier le paiement Stripe"
+      );
+    }
+
+    if (!stripeData.url) {
+      throw new Error(
+        "Stripe n'a retourné aucune URL de paiement."
+      );
+    }
+
+    window.location.href = stripeData.url;
+
+  } catch (err: unknown) {
+    if (err instanceof Error) {
+      setError(err.message);
+    } else {
+      setError('Une erreur inattendue est survenue.');
+    }
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-6 bg-gray-50">
