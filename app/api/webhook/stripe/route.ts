@@ -4,7 +4,9 @@ import { neon } from "@neondatabase/serverless";
 
 export const dynamic = "force-dynamic";
 
-// Initialisation Stripe sécurisée
+// ============================================================
+// STRIPE
+// ============================================================
 function getStripe() {
   const stripeKey = process.env.STRIPE_SECRET_KEY;
 
@@ -15,7 +17,9 @@ function getStripe() {
   return new Stripe(stripeKey);
 }
 
-// Initialisation Neon sécurisée
+// ============================================================
+// NEON
+// ============================================================
 function getDb() {
   const dbUrl = process.env.DATABASE_URL;
 
@@ -26,6 +30,9 @@ function getDb() {
   return neon(dbUrl);
 }
 
+// ============================================================
+// WEBHOOK
+// ============================================================
 export async function POST(req: NextRequest) {
   try {
     const stripe = getStripe();
@@ -42,7 +49,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Important : Stripe exige le corps brut de la requête
+    // Stripe exige le corps brut
     const body = await req.text();
 
     const sig = req.headers.get("stripe-signature");
@@ -78,7 +85,7 @@ export async function POST(req: NextRequest) {
     switch (event.type) {
 
       // ============================================================
-      // 1. PAIEMENT CHECKOUT TERMINÉ
+      // 1. CHECKOUT TERMINÉ
       // ============================================================
       case "checkout.session.completed": {
         const session =
@@ -89,7 +96,7 @@ export async function POST(req: NextRequest) {
             ? session.customer
             : session.customer?.id || null;
 
-        const stripeSubscriptionId =
+        const stripeSubId =
           typeof session.subscription === "string"
             ? session.subscription
             : session.subscription?.id || null;
@@ -106,18 +113,33 @@ export async function POST(req: NextRequest) {
           console.warn(
             "⚠️ Aucun courriel trouvé dans la session Checkout."
           );
+          break;
+        }
 
+        if (!stripeSubId) {
+          console.warn(
+            "⚠️ Aucun abonnement Stripe trouvé dans la session Checkout."
+          );
           break;
         }
 
         try {
+          // Récupération du vrai statut de l'abonnement Stripe
+          const subscription =
+            await stripe.subscriptions.retrieve(stripeSubId);
+
+          const subscriptionStatus =
+            subscription.status === "trialing"
+              ? "TRIALING"
+              : "ACTIVE";
+
           const result = await sql`
             UPDATE "User"
             SET
               "plan" = 'PRO',
-              "subscriptionStatus" = 'ACTIVE',
+              "subscriptionStatus" = ${subscriptionStatus},
               "stripeCustomerId" = ${stripeCustomerId},
-              "stripeSubId" = ${stripeSubscriptionId}
+              "stripeSubId" = ${stripeSubId}
             WHERE LOWER(email) = ${userEmail}
             RETURNING
               id,
@@ -128,17 +150,16 @@ export async function POST(req: NextRequest) {
 
           if (result.length > 0) {
             console.log(
-              `🎉 Utilisateur ${result[0].email} passé au plan PRO.`
+              `🎉 ${result[0].email} → PRO / ${subscriptionStatus}`
             );
           } else {
             console.error(
-              `❌ Aucun utilisateur trouvé pour l'email : ${userEmail}`
+              `❌ Aucun utilisateur trouvé pour ${userEmail}`
             );
           }
-
         } catch (dbError: any) {
           console.error(
-            "❌ Erreur SQL checkout.session.completed :",
+            "❌ Erreur checkout.session.completed :",
             dbError.message
           );
 
@@ -152,7 +173,87 @@ export async function POST(req: NextRequest) {
       }
 
       // ============================================================
-      // 2. RENOUVELLEMENT D'ABONNEMENT RÉUSSI
+      // 2. ABONNEMENT MODIFIÉ
+      // ============================================================
+      case "customer.subscription.updated": {
+        const subscription =
+          event.data.object as Stripe.Subscription;
+
+        let subscriptionStatus:
+          | "TRIALING"
+          | "ACTIVE"
+          | "PAST_DUE"
+          | "CANCELED";
+
+        switch (subscription.status) {
+          case "trialing":
+            subscriptionStatus = "TRIALING";
+            break;
+
+          case "active":
+            subscriptionStatus = "ACTIVE";
+            break;
+
+          case "past_due":
+          case "unpaid":
+            subscriptionStatus = "PAST_DUE";
+            break;
+
+          case "canceled":
+            subscriptionStatus = "CANCELED";
+            break;
+
+          default:
+            console.log(
+              `ℹ️ Statut Stripe non traité : ${subscription.status}`
+            );
+            break;
+        }
+
+        if (
+          subscription.status === "trialing" ||
+          subscription.status === "active" ||
+          subscription.status === "past_due" ||
+          subscription.status === "unpaid" ||
+          subscription.status === "canceled"
+        ) {
+          try {
+            const status =
+              subscription.status === "trialing"
+                ? "TRIALING"
+                : subscription.status === "active"
+                ? "ACTIVE"
+                : subscription.status === "canceled"
+                ? "CANCELED"
+                : "PAST_DUE";
+
+            await sql`
+              UPDATE "User"
+              SET "subscriptionStatus" = ${status}
+              WHERE "stripeSubId" = ${subscription.id}
+            `;
+
+            console.log(
+              `🔄 Abonnement ${subscription.id} → ${status}`
+            );
+          } catch (dbError: any) {
+            console.error(
+              "❌ Erreur customer.subscription.updated :",
+              dbError.message
+            );
+
+            return NextResponse.json(
+              { error: "Erreur base de données." },
+              { status: 500 }
+            );
+          }
+        }
+
+        break;
+      }
+
+      // ============================================================
+      // 3. PAIEMENT / RENOUVELLEMENT RÉUSSI
       // ============================================================
       case "invoice.payment_succeeded": {
         const invoice =
@@ -167,7 +268,6 @@ export async function POST(req: NextRequest) {
           console.warn(
             "⚠️ Aucun Stripe Customer ID dans la facture."
           );
-
           break;
         }
 
@@ -183,17 +283,12 @@ export async function POST(req: NextRequest) {
 
           if (result.length > 0) {
             console.log(
-              `✅ Renouvellement réussi pour ${result[0].email}`
-            );
-          } else {
-            console.warn(
-              `⚠️ Aucun utilisateur trouvé pour le client Stripe ${stripeCustomerId}`
+              `💳 Paiement réussi pour ${result[0].email} → PRO / ACTIVE`
             );
           }
-
         } catch (dbError: any) {
           console.error(
-            "❌ Erreur SQL invoice.payment_succeeded :",
+            "❌ Erreur invoice.payment_succeeded :",
             dbError.message
           );
 
@@ -207,50 +302,7 @@ export async function POST(req: NextRequest) {
       }
 
       // ============================================================
-      // 3. ABONNEMENT RÉSILIÉ
-      // ============================================================
-      case "customer.subscription.deleted": {
-        const subscription =
-          event.data.object as Stripe.Subscription;
-
-        try {
-          const result = await sql`
-            UPDATE "User"
-            SET
-              "plan" = 'FREE',
-              "subscriptionStatus" = 'CANCELED',
-              "stripeSubId" = NULL
-            WHERE "stripeSubId" = ${subscription.id}
-            RETURNING id, email
-          `;
-
-          if (result.length > 0) {
-            console.log(
-              `❌ Abonnement résilié pour ${result[0].email} → passage au plan FREE.`
-            );
-          } else {
-            console.warn(
-              `⚠️ Aucun utilisateur trouvé avec l'abonnement ${subscription.id}`
-            );
-          }
-
-        } catch (dbError: any) {
-          console.error(
-            "❌ Erreur SQL customer.subscription.deleted :",
-            dbError.message
-          );
-
-          return NextResponse.json(
-            { error: "Erreur base de données." },
-            { status: 500 }
-          );
-        }
-
-        break;
-      }
-
-      // ============================================================
-      // 4. PAIEMENT D'ABONNEMENT ÉCHOUÉ
+      // 4. PAIEMENT ÉCHOUÉ
       // ============================================================
       case "invoice.payment_failed": {
         const invoice =
@@ -279,10 +331,9 @@ export async function POST(req: NextRequest) {
               `⚠️ Paiement échoué pour ${result[0].email}`
             );
           }
-
         } catch (dbError: any) {
           console.error(
-            "❌ Erreur SQL invoice.payment_failed :",
+            "❌ Erreur invoice.payment_failed :",
             dbError.message
           );
 
@@ -296,13 +347,54 @@ export async function POST(req: NextRequest) {
       }
 
       // ============================================================
-      // ÉVÉNEMENTS NON TRAITÉS
+      // 5. ABONNEMENT TERMINÉ / SUPPRIMÉ
       // ============================================================
-      default: {
+      case "customer.subscription.deleted": {
+        const subscription =
+          event.data.object as Stripe.Subscription;
+
+        try {
+          const result = await sql`
+            UPDATE "User"
+            SET
+              "plan" = 'FREE',
+              "subscriptionStatus" = 'ACTIVE',
+              "stripeSubId" = NULL
+            WHERE "stripeSubId" = ${subscription.id}
+            RETURNING id, email
+          `;
+
+          if (result.length > 0) {
+            console.log(
+              `🚪 Abonnement terminé pour ${result[0].email} → FREE / ACTIVE`
+            );
+          } else {
+            console.warn(
+              `⚠️ Aucun utilisateur trouvé avec l'abonnement ${subscription.id}`
+            );
+          }
+        } catch (dbError: any) {
+          console.error(
+            "❌ Erreur customer.subscription.deleted :",
+            dbError.message
+          );
+
+          return NextResponse.json(
+            { error: "Erreur base de données." },
+            { status: 500 }
+          );
+        }
+
+        break;
+      }
+
+      // ============================================================
+      // AUTRES ÉVÉNEMENTS
+      // ============================================================
+      default:
         console.log(
           `ℹ️ Événement Stripe ignoré : ${event.type}`
         );
-      }
     }
 
     return NextResponse.json(

@@ -9,7 +9,7 @@ generator client {
 // --- ÉNUMÉRATIONS ---
 
 enum SubscriptionStatus {
-  PENDING   // En attente de paiement (statut par défaut à l'inscription)
+  TRIALING  // Essai gratuit en cours
   ACTIVE    // Abonnement payé et actif
   PAST_DUE  // Échec de paiement / renouvellement en retard
   CANCELED  // Abonnement annulé
@@ -26,22 +26,27 @@ enum InvoiceStatus {
 model User {
   id             String    @id @default(uuid())
   email          String    @unique
-  password       String    
-  companyName    String?   
-  neq            String?   
-  tpsNumber      String?   
-  tvqNumber      String?   
-  address        String?   
-  companyAddress String?   // Configuration émetteur
+  password       String
+  companyName    String?
+  neq            String?
+  tpsNumber      String?
+  tvqNumber      String?
+  address        String?
+  companyAddress String?
+
   invoices       Invoice[]
   clients        Client[]
   expenses       Expense[]
-  createdAt      DateTime  @default(now())
 
-  // --- CONFIGURATION STRIPE (Mise à jour avec Enum) ---
-  subscriptionStatus SubscriptionStatus @default(PENDING) // Remplace isPaid
-  stripeCustomerId   String?            @unique // ID client Stripe (ex: cus_...)
-  stripeSubId        String?            @unique // ID abonnement Stripe (ex: sub_...)
+  createdAt      DateTime @default(now())
+
+  // --- ABONNEMENT ---
+  subscriptionStatus SubscriptionStatus @default(ACTIVE)
+  plan               String             @default("FREE")
+
+  // --- STRIPE ---
+  stripeCustomerId String? @unique
+  stripeSubId      String? @unique
 }
 
 model Invoice {

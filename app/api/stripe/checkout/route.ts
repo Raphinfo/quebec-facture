@@ -5,17 +5,23 @@ import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
-// Helper pour initialiser Neon uniquement à l'exécution
 function getDb() {
   const dbUrl = process.env.DATABASE_URL;
-  if (!dbUrl) throw new Error("DATABASE_URL est manquante.");
+
+  if (!dbUrl) {
+    throw new Error("DATABASE_URL est manquante.");
+  }
+
   return neon(dbUrl);
 }
 
-// Helper pour initialiser Stripe uniquement à l'exécution
 function getStripe() {
   const stripeKey = process.env.STRIPE_SECRET_KEY;
-  if (!stripeKey) throw new Error("STRIPE_SECRET_KEY est manquante.");
+
+  if (!stripeKey) {
+    throw new Error("STRIPE_SECRET_KEY est manquante.");
+  }
+
   return new Stripe(stripeKey);
 }
 
@@ -25,56 +31,92 @@ export async function POST(req: NextRequest) {
     const userId = cookieStore.get("user_session")?.value;
 
     if (!userId) {
-      return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
+      return NextResponse.json(
+        { error: "Non autorisé." },
+        { status: 401 }
+      );
     }
 
-    // 1. Initialiser la BDD et Stripe ici (au runtime)
+    const priceId = process.env.STRIPE_PRICE_ID;
+
+    if (!priceId) {
+      throw new Error("STRIPE_PRICE_ID est manquante.");
+    }
+
     const sql = getDb();
     const stripe = getStripe();
 
-    // 2. Récupérer l'utilisateur dans Neon
     const users = await sql`
-      SELECT email, "stripeCustomerId" 
-      FROM "User" 
-      WHERE id = ${userId} 
+      SELECT
+        email,
+        "stripeCustomerId"
+      FROM "User"
+      WHERE id = ${userId}
       LIMIT 1
     `;
 
     const user = users[0];
+
     if (!user) {
-      return NextResponse.json({ error: "Utilisateur introuvable." }, { status: 404 });
+      return NextResponse.json(
+        { error: "Utilisateur introuvable." },
+        { status: 404 }
+      );
     }
 
-    // 3. Préparer la configuration de la session Checkout
     const sessionConfig: Stripe.Checkout.SessionCreateParams = {
       payment_method_types: ["card"],
+
       line_items: [
         {
-          price: process.env.STRIPE_PRICE_ID,
+          price: priceId,
           quantity: 1,
         },
       ],
+
       mode: "subscription",
+
+      // Essai gratuit de 3 jours.
+      // La carte est enregistrée, mais aucun prélèvement immédiat.
+      subscription_data: {
+        trial_period_days: 3,
+      },
+
       success_url: `${req.nextUrl.origin}/dashboard?success=true`,
-      cancel_url: `${req.nextUrl.origin}/dashboard?canceled=true`,
+      cancel_url: `${req.nextUrl.origin}/choose-plan?canceled=true`,
     };
 
-    // 4. Associer le client existant ou pré-remplir avec son email
     if (user.stripeCustomerId) {
       sessionConfig.customer = user.stripeCustomerId;
     } else {
       sessionConfig.customer_email = user.email;
     }
 
-    // 5. Créer la session Stripe Checkout
-    const checkoutSession = await stripe.checkout.sessions.create(sessionConfig);
+    const checkoutSession =
+      await stripe.checkout.sessions.create(sessionConfig);
 
-    return NextResponse.json({ url: checkoutSession.url }, { status: 200 });
+    if (!checkoutSession.url) {
+      throw new Error(
+        "Stripe n'a retourné aucune URL de Checkout."
+      );
+    }
+
+    return NextResponse.json(
+      { url: checkoutSession.url },
+      { status: 200 }
+    );
 
   } catch (error: any) {
-    console.error("❌ Erreur Stripe Checkout :", error.message);
+    console.error(
+      "❌ Erreur Stripe Checkout :",
+      error.message
+    );
+
     return NextResponse.json(
-      { error: "Erreur lors de la création de la session Checkout." },
+      {
+        error:
+          "Erreur lors de la création de la session Checkout."
+      },
       { status: 500 }
     );
   }
