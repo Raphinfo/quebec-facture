@@ -27,6 +27,9 @@ function getStripe() {
 
 export async function POST(req: NextRequest) {
   try {
+    // ============================================================
+    // 1. VÉRIFIER LA SESSION UTILISATEUR
+    // ============================================================
     const cookieStore = await cookies();
     const userId = cookieStore.get("user_session")?.value;
 
@@ -37,6 +40,31 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // ============================================================
+    // 2. LIRE LE CHOIX : ESSAI OU PRO IMMÉDIAT
+    // ============================================================
+    let body: { trial?: boolean };
+
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { error: "Requête invalide." },
+        { status: 400 }
+      );
+    }
+
+    const trial = body.trial === true;
+
+    console.log(
+      trial
+        ? "🎁 Checkout demandé avec essai gratuit de 3 jours."
+        : "💳 Checkout PRO demandé sans essai."
+    );
+
+    // ============================================================
+    // 3. VÉRIFIER LE PRICE ID
+    // ============================================================
     const priceId = process.env.STRIPE_PRICE_ID;
 
     if (!priceId) {
@@ -46,10 +74,16 @@ export async function POST(req: NextRequest) {
     const sql = getDb();
     const stripe = getStripe();
 
+    // ============================================================
+    // 4. RÉCUPÉRER L'UTILISATEUR
+    // ============================================================
     const users = await sql`
       SELECT
         email,
-        "stripeCustomerId"
+        "stripeCustomerId",
+        plan,
+        "subscriptionStatus",
+        "stripeSubId"
       FROM "User"
       WHERE id = ${userId}
       LIMIT 1
@@ -64,6 +98,29 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // ============================================================
+    // 5. ÉVITER DE CRÉER PLUSIEURS ABONNEMENTS PRO
+    // ============================================================
+    if (
+      user.stripeSubId &&
+      (
+        user.subscriptionStatus === "ACTIVE" ||
+        user.subscriptionStatus === "TRIALING"
+      ) &&
+      user.plan === "PRO"
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Vous avez déjà un abonnement Professionnel actif ou en période d'essai.",
+        },
+        { status: 409 }
+      );
+    }
+
+    // ============================================================
+    // 6. CONFIGURATION STRIPE CHECKOUT
+    // ============================================================
     const sessionConfig: Stripe.Checkout.SessionCreateParams = {
       payment_method_types: ["card"],
 
@@ -76,22 +133,55 @@ export async function POST(req: NextRequest) {
 
       mode: "subscription",
 
-      // Essai gratuit de 3 jours.
-      // La carte est enregistrée, mais aucun prélèvement immédiat.
-      subscription_data: {
-        trial_period_days: 3,
+      success_url:
+        `${req.nextUrl.origin}/dashboard?success=true`,
+
+      cancel_url:
+        `${req.nextUrl.origin}/choose-plan?canceled=true`,
+
+      // Permet de retrouver plus facilement l'utilisateur
+      // dans Stripe.
+      client_reference_id: userId,
+
+      metadata: {
+        userId,
+        checkoutType: trial ? "TRIAL" : "PRO",
       },
 
-      success_url: `${req.nextUrl.origin}/dashboard?success=true`,
-      cancel_url: `${req.nextUrl.origin}/choose-plan?canceled=true`,
+      subscription_data: {
+        metadata: {
+          userId,
+          checkoutType: trial ? "TRIAL" : "PRO",
+        },
+      },
     };
 
+    // ============================================================
+    // 7. AJOUTER LES 3 JOURS UNIQUEMENT POUR L'ESSAI
+    // ============================================================
+    if (trial) {
+      sessionConfig.subscription_data = {
+        ...sessionConfig.subscription_data,
+        trial_period_days: 3,
+      };
+    }
+
+    // Si trial === false :
+    // aucun trial_period_days n'est envoyé à Stripe.
+    // Le premier paiement est donc demandé immédiatement.
+
+    // ============================================================
+    // 8. CLIENT STRIPE
+    // ============================================================
     if (user.stripeCustomerId) {
       sessionConfig.customer = user.stripeCustomerId;
     } else {
       sessionConfig.customer_email = user.email;
     }
 
+    // ============================================================
+    // 9. CRÉER CHECKOUT
+    // ============================================================
     const checkoutSession =
       await stripe.checkout.sessions.create(sessionConfig);
 
@@ -102,7 +192,10 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { url: checkoutSession.url },
+      {
+        url: checkoutSession.url,
+        checkoutType: trial ? "TRIAL" : "PRO",
+      },
       { status: 200 }
     );
 
@@ -115,7 +208,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "Erreur lors de la création de la session Checkout."
+          "Erreur lors de la création de la session Checkout.",
       },
       { status: 500 }
     );

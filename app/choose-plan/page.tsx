@@ -3,16 +3,19 @@
 import { useState } from 'react';
 
 export default function ChoosePlanPage() {
-  const [loading, setLoading] = useState(false);
+  const [loadingPlan, setLoadingPlan] = useState<
+    'trial' | 'pro' | null
+  >(null);
+
   const [error, setError] = useState('');
 
   const chooseFreePlan = () => {
     window.location.href = '/dashboard';
   };
 
-  const chooseProPlan = async () => {
+  const startCheckout = async (trial: boolean) => {
     setError('');
-    setLoading(true);
+    setLoadingPlan(trial ? 'trial' : 'pro');
 
     try {
       const res = await fetch('/api/stripe/checkout', {
@@ -20,6 +23,9 @@ export default function ChoosePlanPage() {
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          trial,
+        }),
       });
 
       const contentType = res.headers.get('content-type');
@@ -57,13 +63,13 @@ export default function ChoosePlanPage() {
         setError('Une erreur inattendue est survenue.');
       }
     } finally {
-      setLoading(false);
+      setLoadingPlan(null);
     }
   };
 
   return (
     <main className="min-h-screen bg-gray-50 flex items-center justify-center px-6 py-12">
-      <div className="w-full max-w-5xl">
+      <div className="w-full max-w-7xl">
 
         <div className="text-center mb-10">
           <h1 className="text-4xl font-bold text-gray-900">
@@ -71,7 +77,8 @@ export default function ChoosePlanPage() {
           </h1>
 
           <p className="mt-3 text-gray-600">
-            Commencez gratuitement ou passez au forfait Professionnel.
+            Commencez gratuitement, testez le forfait Pro pendant 3 jours
+            ou abonnez-vous immédiatement.
           </p>
         </div>
 
@@ -81,9 +88,9 @@ export default function ChoosePlanPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-          {/* PLAN GRATUIT */}
+          {/* FREE */}
           <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-8 flex flex-col">
 
             <div className="mb-6">
@@ -92,7 +99,7 @@ export default function ChoosePlanPage() {
               </span>
 
               <h2 className="mt-4 text-2xl font-bold text-gray-900">
-                Essai Découverte
+                Plan Free
               </h2>
 
               <div className="mt-4 flex items-end gap-2">
@@ -104,6 +111,10 @@ export default function ChoosePlanPage() {
                   / mois
                 </span>
               </div>
+
+              <p className="mt-3 text-sm text-gray-500">
+                Gratuit en permanence.
+              </p>
             </div>
 
             <ul className="space-y-3 text-gray-700 mb-8 flex-1">
@@ -123,12 +134,77 @@ export default function ChoosePlanPage() {
             </button>
           </div>
 
-          {/* PLAN PRO */}
+          {/* ESSAI 3 JOURS */}
+          <div className="bg-white border-2 border-indigo-500 rounded-2xl shadow-lg p-8 flex flex-col relative">
+
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+              <span className="px-4 py-1 text-xs font-bold text-indigo-700 bg-indigo-100 border border-indigo-200 rounded-full">
+                ESSAI GRATUIT
+              </span>
+            </div>
+
+            <div className="mb-6">
+              <h2 className="mt-2 text-2xl font-bold text-gray-900">
+                Essai Pro
+              </h2>
+
+              <div className="mt-4">
+                <span className="text-4xl font-bold text-indigo-600">
+                  0,00 $
+                </span>
+
+                <p className="mt-1 text-sm text-gray-500">
+                  pendant 3 jours
+                </p>
+              </div>
+
+              <div className="mt-5 p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
+                <p className="font-semibold text-indigo-800">
+                  🎁 Accès complet au Plan Pro pendant 3 jours
+                </p>
+
+                <p className="mt-2 text-sm text-indigo-700">
+                  Carte requise, mais aucun prélèvement immédiat.
+                </p>
+
+                <p className="mt-1 text-sm text-indigo-700">
+                  Puis 15,00 $ CA/mois après 3 jours si vous n'annulez pas.
+                </p>
+              </div>
+            </div>
+
+            <ul className="space-y-3 text-gray-700 mb-8 flex-1">
+              <li>⚡ Factures illimitées</li>
+              <li>⚡ Gestion complète des clients</li>
+              <li>⚡ Calcul TPS et TVQ</li>
+              <li>⚡ Gestion avancée des dépenses</li>
+              <li>⚡ Suivi du revenu net</li>
+              <li>⚡ Fonctions professionnelles</li>
+              <li>⚡ Support prioritaire</li>
+            </ul>
+
+            <button
+              type="button"
+              onClick={() => startCheckout(true)}
+              disabled={loadingPlan !== null}
+              className="w-full py-3 px-4 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loadingPlan === 'trial'
+                ? 'Redirection vers Stripe...'
+                : "Commencer l'essai gratuit"}
+            </button>
+
+            <p className="mt-3 text-center text-xs text-gray-500">
+              Annulez avant la fin des 3 jours pour ne rien payer.
+            </p>
+          </div>
+
+          {/* PRO IMMÉDIAT */}
           <div className="bg-white border-2 border-blue-600 rounded-2xl shadow-lg p-8 flex flex-col relative">
 
             <div className="absolute -top-3 left-1/2 -translate-x-1/2">
               <span className="px-4 py-1 text-xs font-bold text-blue-700 bg-blue-100 border border-blue-200 rounded-full">
-                RECOMMANDÉ
+                PROFESSIONNEL
               </span>
             </div>
 
@@ -146,6 +222,10 @@ export default function ChoosePlanPage() {
                   / mois
                 </span>
               </div>
+
+              <p className="mt-3 text-sm text-gray-500">
+                Abonnement immédiat, sans période d'essai.
+              </p>
             </div>
 
             <ul className="space-y-3 text-gray-700 mb-8 flex-1">
@@ -160,20 +240,24 @@ export default function ChoosePlanPage() {
 
             <button
               type="button"
-              onClick={chooseProPlan}
-              disabled={loading}
+              onClick={() => startCheckout(false)}
+              disabled={loadingPlan !== null}
               className="w-full py-3 px-4 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading
+              {loadingPlan === 'pro'
                 ? 'Redirection vers Stripe...'
                 : 'Choisir le Plan Professionnel'}
             </button>
+
+            <p className="mt-3 text-center text-xs text-gray-500">
+              15,00 $ CA facturés immédiatement, puis chaque mois.
+            </p>
           </div>
 
         </div>
 
         <p className="text-center mt-8 text-sm text-gray-500">
-          Vous pourrez modifier votre forfait plus tard depuis votre tableau de bord.
+          Vous pourrez gérer ou annuler votre abonnement depuis votre tableau de bord.
         </p>
 
       </div>
