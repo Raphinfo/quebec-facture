@@ -111,103 +111,115 @@ function DashboardContent() {
   // ============================================================
 
   const fetchSubscription = async () => {
-    try {
-      setLoadingSubscription(true);
-      setSubscriptionError('');
+  try {
+    setLoadingSubscription(true);
+    setSubscriptionError('');
 
-      const res = await fetch('/api/stripe/subscription', {
-        method: 'GET',
-        credentials: 'include',
-        cache: 'no-store',
-      });
+    const res = await fetch('/api/stripe/subscription', {
+      method: 'GET',
+      credentials: 'include',
+      cache: 'no-store',
+    });
 
-      const contentType = res.headers.get('content-type');
+    const contentType = res.headers.get('content-type');
 
-      if (!contentType?.includes('application/json')) {
-        const text = await res.text();
+    if (!contentType?.includes('application/json')) {
+      const text = await res.text();
 
-        console.error(
-          'Réponse abonnement non JSON :',
-          text
-        );
-
-        throw new Error(
-          'Le serveur a retourné une réponse inattendue.'
-        );
-      }
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(
-          data.error ||
-            "Impossible de récupérer les informations d'abonnement."
-        );
-      }
-
-      setUserPlan(
-        data.plan === 'PRO'
-          ? 'PRO'
-          : 'FREE'
-      );
-
-      const validStatuses: SubscriptionStatus[] = [
-        'PENDING',
-        'TRIALING',
-        'ACTIVE',
-        'PAST_DUE',
-        'CANCELED',
-      ];
-
-      const status: SubscriptionStatus =
-        validStatuses.includes(data.subscriptionStatus)
-          ? data.subscriptionStatus
-          : 'ACTIVE';
-
-      setSubscriptionStatus(status);
-
-      setTrialEnd(
-        typeof data.trialEnd === 'string'
-          ? data.trialEnd
-          : null
-      );
-
-      setCurrentPeriodEnd(
-        typeof data.currentPeriodEnd === 'string'
-          ? data.currentPeriodEnd
-          : null
-      );
-
-      setStripeCustomerId(
-        typeof data.stripeCustomerId === 'string'
-          ? data.stripeCustomerId
-          : null
-      );
-
-    } catch (error) {
       console.error(
-        'Erreur récupération abonnement :',
-        error
+        'Réponse abonnement non JSON :',
+        text
       );
 
-      setSubscriptionError(
-        error instanceof Error
-          ? error.message
-          : "Impossible de récupérer votre abonnement."
+      throw new Error(
+        'Le serveur a retourné une réponse inattendue.'
       );
-
-    } finally {
-      setLoadingSubscription(false);
     }
-  };
 
-  // ============================================================
-  // VOIR LES OPTIONS DE FORFAIT
-  // ============================================================
+    const data = await res.json();
 
-  const handleChoosePlan = () => {
-    window.location.href = '/choose-plan';
-  };
+    if (!res.ok) {
+      throw new Error(
+        data.error ||
+          "Impossible de récupérer les informations d'abonnement."
+      );
+    }
+
+    console.log('ABONNEMENT REÇU :', data);
+
+    setUserPlan(
+      data.plan === 'PRO'
+        ? 'PRO'
+        : 'FREE'
+    );
+
+    const validStatuses: SubscriptionStatus[] = [
+      'PENDING',
+      'TRIALING',
+      'ACTIVE',
+      'PAST_DUE',
+      'CANCELED',
+    ];
+
+    const status: SubscriptionStatus =
+      validStatuses.includes(data.subscriptionStatus)
+        ? data.subscriptionStatus
+        : 'ACTIVE';
+
+    setSubscriptionStatus(status);
+
+    setTrialEnd(
+      typeof data.trialEnd === 'string'
+        ? data.trialEnd
+        : null
+    );
+
+    setCurrentPeriodEnd(
+      typeof data.currentPeriodEnd === 'string'
+        ? data.currentPeriodEnd
+        : null
+    );
+
+    setStripeCustomerId(
+      typeof data.stripeCustomerId === 'string'
+        ? data.stripeCustomerId
+        : null
+    );
+
+  } catch (error) {
+    console.error(
+      'Erreur récupération abonnement :',
+      error
+    );
+
+    setSubscriptionError(
+      error instanceof Error
+        ? error.message
+        : "Impossible de récupérer votre abonnement."
+    );
+
+  } finally {
+    setLoadingSubscription(false);
+  }
+};
+
+// ============================================================
+// CHARGER L'ABONNEMENT APRÈS AUTHENTIFICATION
+// ============================================================
+
+useEffect(() => {
+  if (!authorized) return;
+
+  fetchSubscription();
+}, [authorized]);
+
+// ============================================================
+// VOIR LES OPTIONS DE FORFAIT
+// ============================================================
+
+const handleChoosePlan = () => {
+  window.location.href = '/choose-plan';
+};
 
   // ============================================================
   // OUVRIR LE PORTAIL STRIPE
