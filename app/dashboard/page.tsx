@@ -1045,7 +1045,7 @@ function DashboardContent() {
             </section>
           </div>
         </div>
-      ) : activeTab === 'subscription' ? (
+     ) : activeTab === 'subscription' ? (
   <div
     style={{
       width: '100%',
@@ -1089,7 +1089,12 @@ function DashboardContent() {
         boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
       }}
     >
-      {userPlan === 'FREE' ? (
+      {loadingSubscription ? (
+        <p style={{ textAlign: 'center', color: '#718096' }}>
+          Chargement de votre abonnement...
+        </p>
+
+      ) : userPlan === 'FREE' ? (
         <>
           <span
             style={{
@@ -1167,7 +1172,102 @@ function DashboardContent() {
             Voir les options de forfait
           </button>
         </>
-      ) : (
+
+      ) : subscriptionStatus === 'TRIALING' ? (
+        <>
+          <span
+            style={{
+              backgroundColor: '#faf5ff',
+              color: '#6b46c1',
+              padding: '5px 12px',
+              borderRadius: '20px',
+              fontSize: '12px',
+              fontWeight: 'bold'
+            }}
+          >
+            🎁 ESSAI EN COURS
+          </span>
+
+          <h3
+            style={{
+              fontSize: '25px',
+              marginTop: '18px',
+              color: '#2d3748'
+            }}
+          >
+            ⚡ Essai du Plan Professionnel
+          </h3>
+
+          <div
+            style={{
+              fontSize: '34px',
+              fontWeight: 'bold',
+              color: '#6b46c1',
+              margin: '15px 0'
+            }}
+          >
+            0,00 $
+            <span
+              style={{
+                fontSize: '14px',
+                color: '#a0aec0',
+                fontWeight: 'normal'
+              }}
+            >
+              {' '}
+              pendant l'essai
+            </span>
+          </div>
+
+          <p style={{ color: '#4a5568' }}>
+            Vous profitez actuellement de toutes les fonctionnalités
+            du Plan Professionnel.
+          </p>
+
+          {trialEnd && (
+            <div
+              style={{
+                marginTop: '20px',
+                padding: '16px',
+                backgroundColor: '#faf5ff',
+                border: '1px solid #e9d8fd',
+                borderRadius: '8px',
+                color: '#553c9a'
+              }}
+            >
+              <strong>Fin de l'essai :</strong>{' '}
+              {new Date(trialEnd).toLocaleDateString('fr-CA', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              })}
+
+              <div style={{ marginTop: '8px' }}>
+                Puis <strong>15,00 $ CA / mois</strong> si vous
+                n'annulez pas avant cette date.
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={handleOpenStripePortal}
+            style={{
+              width: '100%',
+              marginTop: '25px',
+              padding: '13px',
+              backgroundColor: '#6b46c1',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '8px',
+              fontWeight: 'bold',
+              cursor: 'pointer'
+            }}
+          >
+            Gérer ou annuler mon essai
+          </button>
+        </>
+
+      ) : subscriptionStatus === 'ACTIVE' ? (
         <>
           <span
             style={{
@@ -1217,6 +1317,25 @@ function DashboardContent() {
             Votre abonnement Professionnel est actif.
           </p>
 
+          {currentPeriodEnd && (
+            <p
+              style={{
+                marginTop: '15px',
+                color: '#718096',
+                fontSize: '14px'
+              }}
+            >
+              Prochaine échéance :{' '}
+              <strong>
+                {new Date(currentPeriodEnd).toLocaleDateString('fr-CA', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })}
+              </strong>
+            </p>
+          )}
+
           <button
             onClick={handleOpenStripePortal}
             style={{
@@ -1234,10 +1353,129 @@ function DashboardContent() {
             Gérer mon abonnement
           </button>
         </>
+
+      ) : subscriptionStatus === 'PAST_DUE' ? (
+        <>
+          <span
+            style={{
+              backgroundColor: '#fff5f5',
+              color: '#c53030',
+              padding: '5px 12px',
+              borderRadius: '20px',
+              fontSize: '12px',
+              fontWeight: 'bold'
+            }}
+          >
+            PAIEMENT À RÉGULARISER
+          </span>
+
+          <h3
+            style={{
+              fontSize: '25px',
+              marginTop: '18px',
+              color: '#2d3748'
+            }}
+          >
+            ⚠️ Plan Professionnel
+          </h3>
+
+          <p
+            style={{
+              marginTop: '20px',
+              color: '#c53030'
+            }}
+          >
+            Votre dernier paiement n'a pas pu être traité.
+          </p>
+
+          <button
+            onClick={handleOpenStripePortal}
+            style={{
+              width: '100%',
+              marginTop: '25px',
+              padding: '13px',
+              backgroundColor: '#c53030',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '8px',
+              fontWeight: 'bold',
+              cursor: 'pointer'
+            }}
+          >
+            Régulariser mon abonnement
+          </button>
+        </>
+
+      ) : (
+        <>
+          <span
+            style={{
+              backgroundColor: '#edf2f7',
+              color: '#4a5568',
+              padding: '5px 12px',
+              borderRadius: '20px',
+              fontSize: '12px',
+              fontWeight: 'bold'
+            }}
+          >
+            ABONNEMENT INACTIF
+          </span>
+
+          <h3
+            style={{
+              fontSize: '25px',
+              marginTop: '18px',
+              color: '#2d3748'
+            }}
+          >
+            Plan Free
+          </h3>
+
+          <p
+            style={{
+              marginTop: '15px',
+              color: '#718096'
+            }}
+          >
+            Aucun abonnement Professionnel actif.
+          </p>
+
+          <button
+            onClick={handleChoosePlan}
+            style={{
+              width: '100%',
+              marginTop: '25px',
+              padding: '13px',
+              backgroundColor: '#3182ce',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '8px',
+              fontWeight: 'bold',
+              cursor: 'pointer'
+            }}
+          >
+            Voir les options de forfait
+          </button>
+        </>
+      )}
+
+      {subscriptionError && (
+        <div
+          style={{
+            marginTop: '20px',
+            padding: '12px',
+            backgroundColor: '#fff5f5',
+            border: '1px solid #fed7d7',
+            color: '#c53030',
+            borderRadius: '8px'
+          }}
+        >
+          {subscriptionError}
+        </div>
       )}
     </div>
   </div>
-      ) : (
+): (
         /* ONGLET FACTURATION STANDARD ('billing') */
         <div style={{ display: 'flex', flexDirection: 'column', gap: '30px', width: '100%' }}>
           <div style={{ display: 'flex', gap: '40px', alignItems: 'flex-start' }}>
