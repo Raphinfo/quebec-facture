@@ -13,29 +13,263 @@ interface Expense {
   createdAt: string;
 }
 
+type ActiveTab =
+  | 'billing'
+  | 'profile'
+  | 'privacy'
+  | 'expenses'
+  | 'subscription'
+  | 'settings';
+
+type SubscriptionStatus =
+  | 'PENDING'
+  | 'TRIALING'
+  | 'ACTIVE'
+  | 'PAST_DUE'
+  | 'CANCELED';
+
 function DashboardContent() {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
 
-  const [activeTab, setActiveTab] = useState<'billing' | 'profile' | 'privacy' | 'expenses' | 'subscription'>('billing');
+  // ============================================================
+  // NAVIGATION
+  // ============================================================
 
-  // Synchroniser l'onglet avec l'URL (via les clics dans la Sidebar)
+  const [activeTab, setActiveTab] =
+    useState<ActiveTab>('billing');
+
   useEffect(() => {
-    if (tabParam === 'company' || tabParam === 'profile') setActiveTab('profile');
-    else if (tabParam === 'expenses') setActiveTab('expenses');
-    else if (tabParam === 'privacy') setActiveTab('privacy');
-    else if (tabParam === 'subscription') setActiveTab('subscription');
-    else setActiveTab('billing');
+    switch (tabParam) {
+      case 'company':
+      case 'profile':
+        setActiveTab('profile');
+        break;
+
+      case 'expenses':
+        setActiveTab('expenses');
+        break;
+
+      case 'privacy':
+        setActiveTab('privacy');
+        break;
+
+      case 'subscription':
+        setActiveTab('subscription');
+        break;
+
+      case 'settings':
+        setActiveTab('settings');
+        break;
+
+      default:
+        setActiveTab('billing');
+    }
   }, [tabParam]);
+
+  // ============================================================
+  // AUTHENTIFICATION
+  // ============================================================
 
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [authorized, setAuthorized] = useState(false);
 
-  // Listes de données
+  // ============================================================
+  // DONNÉES PRINCIPALES
+  // ============================================================
+
   const [clients, setClients] = useState<any[]>([]);
   const [invoices, setInvoices] = useState<any[]>([]);
-  const [userPlan, setUserPlan] = useState<'FREE' | 'PRO'>('FREE');
 
+  // ============================================================
+  // ABONNEMENT
+  // ============================================================
+
+  const [userPlan, setUserPlan] =
+    useState<'FREE' | 'PRO'>('FREE');
+
+  const [subscriptionStatus, setSubscriptionStatus] =
+    useState<SubscriptionStatus>('ACTIVE');
+
+  const [trialEnd, setTrialEnd] =
+    useState<string | null>(null);
+
+  const [currentPeriodEnd, setCurrentPeriodEnd] =
+    useState<string | null>(null);
+
+  const [stripeCustomerId, setStripeCustomerId] =
+    useState<string | null>(null);
+
+  const [loadingSubscription, setLoadingSubscription] =
+    useState(false);
+
+  const [subscriptionError, setSubscriptionError] =
+    useState('');
+
+  // ============================================================
+  // CHARGER L'ABONNEMENT
+  // ============================================================
+
+  const fetchSubscription = async () => {
+    try {
+      setLoadingSubscription(true);
+      setSubscriptionError('');
+
+      const res = await fetch('/api/stripe/subscription', {
+        method: 'GET',
+        credentials: 'include',
+        cache: 'no-store',
+      });
+
+      const contentType = res.headers.get('content-type');
+
+      if (!contentType?.includes('application/json')) {
+        const text = await res.text();
+
+        console.error(
+          'Réponse abonnement non JSON :',
+          text
+        );
+
+        throw new Error(
+          'Le serveur a retourné une réponse inattendue.'
+        );
+      }
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(
+          data.error ||
+            "Impossible de récupérer les informations d'abonnement."
+        );
+      }
+
+      setUserPlan(
+        data.plan === 'PRO'
+          ? 'PRO'
+          : 'FREE'
+      );
+
+      const validStatuses: SubscriptionStatus[] = [
+        'PENDING',
+        'TRIALING',
+        'ACTIVE',
+        'PAST_DUE',
+        'CANCELED',
+      ];
+
+      const status: SubscriptionStatus =
+        validStatuses.includes(data.subscriptionStatus)
+          ? data.subscriptionStatus
+          : 'ACTIVE';
+
+      setSubscriptionStatus(status);
+
+      setTrialEnd(
+        typeof data.trialEnd === 'string'
+          ? data.trialEnd
+          : null
+      );
+
+      setCurrentPeriodEnd(
+        typeof data.currentPeriodEnd === 'string'
+          ? data.currentPeriodEnd
+          : null
+      );
+
+      setStripeCustomerId(
+        typeof data.stripeCustomerId === 'string'
+          ? data.stripeCustomerId
+          : null
+      );
+
+    } catch (error) {
+      console.error(
+        'Erreur récupération abonnement :',
+        error
+      );
+
+      setSubscriptionError(
+        error instanceof Error
+          ? error.message
+          : "Impossible de récupérer votre abonnement."
+      );
+
+    } finally {
+      setLoadingSubscription(false);
+    }
+  };
+
+  // ============================================================
+  // VOIR LES OPTIONS DE FORFAIT
+  // ============================================================
+
+  const handleChoosePlan = () => {
+    window.location.href = '/choose-plan';
+  };
+
+  // ============================================================
+  // OUVRIR LE PORTAIL STRIPE
+  // ============================================================
+
+  const handleOpenStripePortal = async () => {
+    try {
+      setSubscriptionError('');
+
+      const res = await fetch('/api/stripe/portal', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      const contentType = res.headers.get('content-type');
+
+      if (!contentType?.includes('application/json')) {
+        const text = await res.text();
+
+        console.error(
+          'Réponse portail Stripe non JSON :',
+          text
+        );
+
+        throw new Error(
+          'Le serveur Stripe a retourné une réponse inattendue.'
+        );
+      }
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(
+          data.error ||
+            "Impossible d'ouvrir le portail Stripe."
+        );
+      }
+
+      if (!data.url) {
+        throw new Error(
+          "Stripe n'a retourné aucune URL."
+        );
+      }
+
+      window.location.href = data.url;
+
+    } catch (error) {
+      console.error(
+        'Erreur portail Stripe :',
+        error
+      );
+
+      setSubscriptionError(
+        error instanceof Error
+          ? error.message
+          : "Impossible d'ouvrir la gestion de l'abonnement."
+      );
+    }
+  };
   // Dépenses
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [expenseDesc, setExpenseDesc] = useState('');
@@ -175,24 +409,6 @@ function DashboardContent() {
     }
   };
 
-  // Redirection Stripe Checkout
-// Voir les options de forfait
-const handleChoosePlan = () => {
-  window.location.href = '/choose-plan';
-};
-
-  // Portail Stripe
-  const handleOpenStripePortal = async () => {
-    try {
-      const res = await fetch("/api/stripe/portal", { method: "POST" });
-      const data = await res.json();
-      if (res.ok && data.url) window.location.href = data.url;
-      else alert(data.error || "Impossible d'ouvrir le portail de gestion Stripe.");
-    } catch (err) {
-      console.error("Erreur portail :", err);
-      alert("Erreur de connexion au service de gestion d'abonnement.");
-    }
-  };
 
   // Vérification de session
  useEffect(() => {
