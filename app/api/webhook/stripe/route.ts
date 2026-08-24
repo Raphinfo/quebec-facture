@@ -256,97 +256,119 @@ export async function POST(req: NextRequest) {
       // 3. PAIEMENT / RENOUVELLEMENT RÉUSSI
       // ============================================================
       case "invoice.payment_succeeded": {
-        const invoice =
-          event.data.object as Stripe.Invoice;
+  const invoice =
+    event.data.object as Stripe.Invoice;
 
-        const stripeCustomerId =
-          typeof invoice.customer === "string"
-            ? invoice.customer
-            : invoice.customer?.id || null;
+  const stripeCustomerId =
+    typeof invoice.customer === "string"
+      ? invoice.customer
+      : invoice.customer?.id || null;
 
-        if (!stripeCustomerId) {
-          console.warn(
-            "⚠️ Aucun Stripe Customer ID dans la facture."
-          );
-          break;
-        }
+  if (!stripeCustomerId) {
+    console.warn(
+      "⚠️ Aucun Stripe Customer ID dans la facture."
+    );
+    break;
+  }
 
-        try {
-          const result = await sql`
-            UPDATE "User"
-            SET
-              "plan" = 'PRO',
-              "subscriptionStatus" = 'ACTIVE'
-            WHERE "stripeCustomerId" = ${stripeCustomerId}
-            RETURNING id, email
-          `;
+  try {
+    // ==========================================================
+    // IMPORTANT :
+    // Une facture réussie ne signifie pas forcément que
+    // l'abonnement n'est plus en période d'essai.
+    //
+    // Stripe reste la source de vérité pour le statut.
+    // ==========================================================
 
-          if (result.length > 0) {
-            console.log(
-              `💳 Paiement réussi pour ${result[0].email} → PRO / ACTIVE`
-            );
-          }
-        } catch (dbError: any) {
-          console.error(
-            "❌ Erreur invoice.payment_succeeded :",
-            dbError.message
-          );
+    const subscriptions =
+      await stripe.subscriptions.list({
+        customer: stripeCustomerId,
+        status: "all",
+        limit: 10,
+      });
 
-          return NextResponse.json(
-            { error: "Erreur base de données." },
-            { status: 500 }
-          );
-        }
+    const subscription =
+      subscriptions.data.find(
+        (sub) =>
+          sub.status === "trialing" ||
+          sub.status === "active" ||
+          sub.status === "past_due" ||
+          sub.status === "unpaid"
+      );
 
-        break;
-      }
+    if (!subscription) {
+      console.warn(
+        `⚠️ Aucun abonnement actif trouvé pour ${stripeCustomerId}`
+      );
+      break;
+    }
 
-      // ============================================================
-      // 4. PAIEMENT ÉCHOUÉ
-      // ============================================================
-      case "invoice.payment_failed": {
-        const invoice =
-          event.data.object as Stripe.Invoice;
+    if (
+  subscription.status !== "trialing" &&
+  subscription.status !== "active" &&
+  subscription.status !== "past_due" &&
+  subscription.status !== "unpaid" &&
+  subscription.status !== "canceled"
+) {
+  console.log(
+    `ℹ️ Statut Stripe non traité après paiement : ${subscription.status}`
+  );
 
-        const stripeCustomerId =
-          typeof invoice.customer === "string"
-            ? invoice.customer
-            : invoice.customer?.id || null;
+  break;
+}
 
-        if (!stripeCustomerId) {
-          break;
-        }
+const subscriptionStatus:
+  | "TRIALING"
+  | "ACTIVE"
+  | "PAST_DUE"
+  | "CANCELED" =
+    subscription.status === "trialing"
+      ? "TRIALING"
+      : subscription.status === "active"
+      ? "ACTIVE"
+      : subscription.status === "canceled"
+      ? "CANCELED"
+      : "PAST_DUE";
 
-        try {
-          const result = await sql`
-            UPDATE "User"
-            SET
-              "subscriptionStatus" = 'PAST_DUE'
-            WHERE "stripeCustomerId" = ${stripeCustomerId}
-            RETURNING id, email
-          `;
+    const result = await sql`
+      UPDATE "User"
+      SET
+        "plan" = 'PRO',
+        "subscriptionStatus" = ${subscriptionStatus},
+        "stripeCustomerId" = ${stripeCustomerId},
+        "stripeSubId" = ${subscription.id}
+      WHERE "stripeCustomerId" = ${stripeCustomerId}
+      RETURNING
+        id,
+        email,
+        plan,
+        "subscriptionStatus"
+    `;
 
-          if (result.length > 0) {
-            console.warn(
-              `⚠️ Paiement échoué pour ${result[0].email}`
-            );
-          }
-        } catch (dbError: any) {
-          console.error(
-            "❌ Erreur invoice.payment_failed :",
-            dbError.message
-          );
+    if (result.length > 0) {
+      console.log(
+        `💳 Paiement réussi pour ${result[0].email} → PRO / ${subscriptionStatus}`
+      );
+    } else {
+      console.warn(
+        `⚠️ Aucun utilisateur trouvé pour le customer ${stripeCustomerId}`
+      );
+    }
 
-          return NextResponse.json(
-            { error: "Erreur base de données." },
-            { status: 500 }
-          );
-        }
+  } catch (dbError: any) {
+    console.error(
+      "❌ Erreur invoice.payment_succeeded :",
+      dbError.message
+    );
 
-        break;
-      }
+    return NextResponse.json(
+      { error: "Erreur base de données." },
+      { status: 500 }
+    );
+  }
 
-      // ============================================================
+  break;
+}
       // 5. ABONNEMENT TERMINÉ / SUPPRIMÉ
       // ============================================================
       case "customer.subscription.deleted": {
