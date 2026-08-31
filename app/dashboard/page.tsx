@@ -1381,10 +1381,11 @@ const handleChoosePlan = () => {
                 <strong>
                   {cancelAt || trialEnd
                     ? new Date(cancelAt || trialEnd || '').toLocaleDateString('fr-CA', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      timeZone: 'America/Toronto',
+                    })
                     : 'terme de la période'}
                 </strong>.
               </div>
