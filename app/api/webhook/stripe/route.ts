@@ -380,7 +380,7 @@ const subscriptionStatus:
             UPDATE "User"
             SET
               "plan" = 'FREE',
-              "subscriptionStatus" = 'ACTIVE',
+              "subscriptionStatus" = 'CANCELED',
               "stripeSubId" = NULL
             WHERE "stripeSubId" = ${subscription.id}
             RETURNING id, email

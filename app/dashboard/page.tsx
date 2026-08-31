@@ -97,6 +97,12 @@ function DashboardContent() {
   const [currentPeriodEnd, setCurrentPeriodEnd] =
     useState<string | null>(null);
 
+  const [cancelAtPeriodEnd, setCancelAtPeriodEnd] =
+    useState(false);
+
+  const [cancelAt, setCancelAt] =
+    useState<string | null>(null);
+
   const [stripeCustomerId, setStripeCustomerId] =
     useState<string | null>(null);
 
@@ -177,6 +183,16 @@ function DashboardContent() {
     setCurrentPeriodEnd(
       typeof data.currentPeriodEnd === 'string'
         ? data.currentPeriodEnd
+        : null
+    );
+
+    setCancelAtPeriodEnd(
+      data.cancelAtPeriodEnd === true
+    );
+
+    setCancelAt(
+      typeof data.cancelAt === 'string'
+        ? data.cancelAt
         : null
     );
 
@@ -1057,7 +1073,119 @@ const handleChoosePlan = () => {
             </section>
           </div>
         </div>
-     ) : activeTab === 'subscription' ? (
+     ) : activeTab === 'settings' ? (
+  <div
+    style={{
+      width: '100%',
+      maxWidth: '760px',
+      margin: '0 auto',
+      padding: '10px 0'
+    }}
+  >
+    <div style={{ marginBottom: '30px' }}>
+      <h2 style={{ fontSize: '26px', color: '#2d3748', marginBottom: '8px' }}>
+        ⚙️ Paramètres
+      </h2>
+      <p style={{ color: '#718096', fontSize: '14px' }}>
+        Gérez votre compte, votre forfait et vos informations de facturation.
+      </p>
+    </div>
+
+    <section
+      style={{
+        backgroundColor: '#ffffff',
+        border: '1px solid #e2e8f0',
+        borderRadius: '12px',
+        padding: '28px',
+        marginBottom: '20px',
+        boxShadow: '0 4px 8px rgba(0,0,0,0.04)'
+      }}
+    >
+      <h3 style={{ marginTop: 0, fontSize: '18px', color: '#2d3748' }}>
+        💳 Abonnement & facturation
+      </h3>
+
+      <p style={{ color: '#718096', fontSize: '14px', marginBottom: '20px' }}>
+        Gérez votre abonnement, votre mode de paiement et l'annulation depuis Stripe.
+      </p>
+
+      <div
+        style={{
+          padding: '15px',
+          backgroundColor: '#f7fafc',
+          borderRadius: '8px',
+          marginBottom: '20px'
+        }}
+      >
+        <strong>Forfait actuel :</strong>{' '}
+        {userPlan === 'FREE'
+          ? 'Plan Free'
+          : subscriptionStatus === 'TRIALING'
+          ? 'Essai Pro'
+          : 'Plan Professionnel'}
+        <br />
+        <span style={{ fontSize: '13px', color: '#718096' }}>
+          Statut :{' '}
+          {subscriptionStatus === 'TRIALING'
+            ? cancelAtPeriodEnd
+              ? 'Essai actif — annulation programmée'
+              : 'Essai en cours'
+            : subscriptionStatus === 'ACTIVE'
+            ? cancelAtPeriodEnd
+              ? 'Actif — annulation programmée'
+              : 'Actif'
+            : subscriptionStatus === 'PAST_DUE'
+            ? 'Paiement à régulariser'
+            : subscriptionStatus === 'CANCELED'
+            ? 'Annulé'
+            : 'En attente'}
+        </span>
+      </div>
+
+      {userPlan === 'PRO' && stripeCustomerId ? (
+        <button
+          type="button"
+          onClick={handleOpenStripePortal}
+          style={{
+            width: '100%',
+            padding: '13px',
+            backgroundColor: cancelAtPeriodEnd ? '#d69e2e' : '#3182ce',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: '8px',
+            fontWeight: 'bold',
+            fontSize: '14px',
+            cursor: 'pointer'
+          }}
+        >
+          {cancelAtPeriodEnd
+            ? 'Gérer ou réactiver mon abonnement'
+            : subscriptionStatus === 'TRIALING'
+            ? 'Gérer ou annuler mon essai'
+            : 'Gérer mon abonnement'}
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={handleChoosePlan}
+          style={{
+            width: '100%',
+            padding: '13px',
+            backgroundColor: '#3182ce',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: '8px',
+            fontWeight: 'bold',
+            fontSize: '14px',
+            cursor: 'pointer'
+          }}
+        >
+          Voir les options de forfait
+        </button>
+      )}
+    </section>
+  </div>
+) : activeTab === 'subscription' ? (
   <div
     style={{
       width: '100%',
@@ -1189,15 +1317,15 @@ const handleChoosePlan = () => {
         <>
           <span
             style={{
-              backgroundColor: '#faf5ff',
-              color: '#6b46c1',
+              backgroundColor: cancelAtPeriodEnd ? '#fffaf0' : '#faf5ff',
+              color: cancelAtPeriodEnd ? '#975a16' : '#6b46c1',
               padding: '5px 12px',
               borderRadius: '20px',
               fontSize: '12px',
               fontWeight: 'bold'
             }}
           >
-            🎁 ESSAI EN COURS
+            {cancelAtPeriodEnd ? '⚠️ ANNULATION PROGRAMMÉE' : '🎁 ESSAI EN COURS'}
           </span>
 
           <h3
@@ -1236,7 +1364,35 @@ const handleChoosePlan = () => {
             du Plan Professionnel.
           </p>
 
-          {trialEnd && (
+          {cancelAtPeriodEnd ? (
+            <div
+              style={{
+                marginTop: '20px',
+                padding: '16px',
+                backgroundColor: '#fffaf0',
+                border: '1px solid #fbd38d',
+                borderRadius: '8px',
+                color: '#975a16'
+              }}
+            >
+              <strong>⚠️ Annulation programmée</strong>
+              <div style={{ marginTop: '10px' }}>
+                Votre essai reste actif jusqu'au{' '}
+                <strong>
+                  {cancelAt || trialEnd
+                    ? new Date(cancelAt || trialEnd || '').toLocaleDateString('fr-CA', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })
+                    : 'terme de la période'}
+                </strong>.
+              </div>
+              <div style={{ marginTop: '8px' }}>
+                Vous ne serez pas facturé <strong>15,00 $ CA</strong> après cette date.
+              </div>
+            </div>
+          ) : trialEnd ? (
             <div
               style={{
                 marginTop: '20px',
@@ -1253,13 +1409,11 @@ const handleChoosePlan = () => {
                 month: 'long',
                 day: 'numeric'
               })}
-
               <div style={{ marginTop: '8px' }}>
-                Puis <strong>15,00 $ CA / mois</strong> si vous
-                n'annulez pas avant cette date.
+                Puis <strong>15,00 $ CA / mois</strong> si vous n'annulez pas avant cette date.
               </div>
             </div>
-          )}
+          ) : null}
 
           <button
             onClick={handleOpenStripePortal}
@@ -1267,7 +1421,7 @@ const handleChoosePlan = () => {
               width: '100%',
               marginTop: '25px',
               padding: '13px',
-              backgroundColor: '#6b46c1',
+              backgroundColor: cancelAtPeriodEnd ? '#d69e2e' : '#6b46c1',
               color: '#ffffff',
               border: 'none',
               borderRadius: '8px',
@@ -1275,7 +1429,9 @@ const handleChoosePlan = () => {
               cursor: 'pointer'
             }}
           >
-            Gérer ou annuler mon essai
+            {cancelAtPeriodEnd
+              ? 'Gérer ou réactiver mon abonnement'
+              : 'Gérer ou annuler mon essai'}
           </button>
         </>
 
@@ -1283,15 +1439,15 @@ const handleChoosePlan = () => {
         <>
           <span
             style={{
-              backgroundColor: '#f0fff4',
-              color: '#276749',
+              backgroundColor: cancelAtPeriodEnd ? '#fffaf0' : '#f0fff4',
+              color: cancelAtPeriodEnd ? '#975a16' : '#276749',
               padding: '5px 12px',
               borderRadius: '20px',
               fontSize: '12px',
               fontWeight: 'bold'
             }}
           >
-            ABONNEMENT ACTIF
+            {cancelAtPeriodEnd ? '⚠️ ANNULATION PROGRAMMÉE' : 'ABONNEMENT ACTIF'}
           </span>
 
           <h3
@@ -1325,27 +1481,58 @@ const handleChoosePlan = () => {
             </span>
           </div>
 
-          <p style={{ color: '#4a5568' }}>
-            Votre abonnement Professionnel est actif.
-          </p>
-
-          {currentPeriodEnd && (
-            <p
+          {cancelAtPeriodEnd ? (
+            <div
               style={{
-                marginTop: '15px',
-                color: '#718096',
-                fontSize: '14px'
+                marginTop: '20px',
+                padding: '16px',
+                backgroundColor: '#fffaf0',
+                border: '1px solid #fbd38d',
+                borderRadius: '8px',
+                color: '#975a16'
               }}
             >
-              Prochaine échéance :{' '}
-              <strong>
-                {new Date(currentPeriodEnd).toLocaleDateString('fr-CA', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })}
-              </strong>
-            </p>
+              <strong>⚠️ Annulation programmée</strong>
+              <div style={{ marginTop: '10px' }}>
+                Votre abonnement reste actif jusqu'au{' '}
+                <strong>
+                  {cancelAt || currentPeriodEnd
+                    ? new Date(cancelAt || currentPeriodEnd || '').toLocaleDateString('fr-CA', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })
+                    : 'terme de la période'}
+                </strong>.
+              </div>
+              <div style={{ marginTop: '8px' }}>
+                Aucun nouveau prélèvement ne sera effectué après cette date.
+              </div>
+            </div>
+          ) : (
+            <>
+              <p style={{ color: '#4a5568' }}>
+                Votre abonnement Professionnel est actif.
+              </p>
+              {currentPeriodEnd && (
+                <p
+                  style={{
+                    marginTop: '15px',
+                    color: '#718096',
+                    fontSize: '14px'
+                  }}
+                >
+                  Prochaine échéance :{' '}
+                  <strong>
+                    {new Date(currentPeriodEnd).toLocaleDateString('fr-CA', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    })}
+                  </strong>
+                </p>
+              )}
+            </>
           )}
 
           <button
@@ -1354,7 +1541,7 @@ const handleChoosePlan = () => {
               width: '100%',
               marginTop: '25px',
               padding: '13px',
-              backgroundColor: '#38a169',
+              backgroundColor: cancelAtPeriodEnd ? '#d69e2e' : '#38a169',
               color: '#ffffff',
               border: 'none',
               borderRadius: '8px',
@@ -1362,7 +1549,9 @@ const handleChoosePlan = () => {
               cursor: 'pointer'
             }}
           >
-            Gérer mon abonnement
+            {cancelAtPeriodEnd
+              ? 'Gérer ou réactiver mon abonnement'
+              : 'Gérer mon abonnement'}
           </button>
         </>
 

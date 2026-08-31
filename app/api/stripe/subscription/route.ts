@@ -27,6 +27,10 @@ function getStripe() {
 
 export async function GET() {
   try {
+    // ============================================================
+    // 1. VÉRIFIER LA SESSION UTILISATEUR
+    // ============================================================
+
     const cookieStore = await cookies();
     const userId = cookieStore.get("user_session")?.value;
 
@@ -36,6 +40,10 @@ export async function GET() {
         { status: 401 }
       );
     }
+
+    // ============================================================
+    // 2. RÉCUPÉRER L'UTILISATEUR
+    // ============================================================
 
     const sql = getDb();
 
@@ -61,15 +69,32 @@ export async function GET() {
       );
     }
 
+    // ============================================================
+    // 3. VALEURS STRIPE
+    // ============================================================
+
     let trialEnd: string | null = null;
     let currentPeriodEnd: string | null = null;
+
+    let cancelAtPeriodEnd = false;
+    let cancelAt: string | null = null;
+
+    // ============================================================
+    // 4. RÉCUPÉRER L'ABONNEMENT STRIPE
+    // ============================================================
 
     if (user.stripeSubId) {
       try {
         const stripe = getStripe();
 
         const subscription =
-          await stripe.subscriptions.retrieve(user.stripeSubId);
+          await stripe.subscriptions.retrieve(
+            user.stripeSubId
+          );
+
+        // ========================================================
+        // FIN DE LA PÉRIODE D'ESSAI
+        // ========================================================
 
         if (subscription.trial_end) {
           trialEnd = new Date(
@@ -77,13 +102,50 @@ export async function GET() {
           ).toISOString();
         }
 
-       const firstItem = subscription.items.data[0];
+        // ========================================================
+        // ANNULATION PROGRAMMÉE
+        // ========================================================
+
+        cancelAtPeriodEnd =
+          subscription.cancel_at_period_end === true ||
+          subscription.cancel_at !== null;
+
+        if (subscription.cancel_at) {
+          cancelAt = new Date(
+            subscription.cancel_at * 1000
+          ).toISOString();
+        }
+
+        // ========================================================
+        // FIN DE LA PÉRIODE COURANTE
+        // Stripe v22 expose current_period_end sur l'item
+        // ========================================================
+
+        const firstItem =
+          subscription.items.data[0];
 
         if (firstItem?.current_period_end) {
-        currentPeriodEnd = new Date(
+          currentPeriodEnd = new Date(
             firstItem.current_period_end * 1000
-        ).toISOString();
+          ).toISOString();
         }
+
+        // ========================================================
+        // DEBUG TEMPORAIRE
+        // ========================================================
+
+        console.log(
+          "ℹ️ Subscription Stripe :",
+          {
+            id: subscription.id,
+            status: subscription.status,
+            trial_end: subscription.trial_end,
+            cancel_at_period_end:
+              subscription.cancel_at_period_end,
+            cancel_at:
+              subscription.cancel_at,
+          }
+        );
 
       } catch (stripeError: any) {
         console.error(
@@ -93,9 +155,17 @@ export async function GET() {
       }
     }
 
+    // ============================================================
+    // 5. RETOUR API
+    // ============================================================
+
     return NextResponse.json(
       {
-        plan: user.plan || "FREE",
+        plan:
+          user.plan === "PRO"
+            ? "PRO"
+            : "FREE",
+
         subscriptionStatus:
           user.subscriptionStatus || "ACTIVE",
 
@@ -107,6 +177,9 @@ export async function GET() {
 
         trialEnd,
         currentPeriodEnd,
+
+        cancelAtPeriodEnd,
+        cancelAt,
       },
       { status: 200 }
     );
