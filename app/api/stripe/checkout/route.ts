@@ -170,39 +170,24 @@ export async function POST(req: NextRequest) {
     // ============================================================
     // 8. CLIENT STRIPE
     // ============================================================
-    
-let customerId = user.stripeCustomerId;
 
-if (!customerId) {
-  const isStripeTestMode =
-    process.env.STRIPE_SECRET_KEY?.startsWith('sk_test_');
+    let customerId = user.stripeCustomerId;
 
-  const testClockId =
-    isStripeTestMode
-      ? process.env.STRIPE_TEST_CLOCK_ID || null
-      : null;
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: user.email,
+      });
 
-  const customer = await stripe.customers.create({
-    email: user.email,
+      customerId = customer.id;
 
-    ...(testClockId
-      ? {
-          test_clock: testClockId,
-        }
-      : {}),
-  });
+      await sql`
+        UPDATE "User"
+        SET "stripeCustomerId" = ${customerId}
+        WHERE id = ${userId}
+      `;
+    }
 
-  customerId = customer.id;
-
-  await sql`
-    UPDATE "User"
-    SET "stripeCustomerId" = ${customerId}
-    WHERE id = ${userId}
-  `;
-}
-
-sessionConfig.customer = customerId;
-
+    sessionConfig.customer = customerId;
 
 
     // ============================================================
