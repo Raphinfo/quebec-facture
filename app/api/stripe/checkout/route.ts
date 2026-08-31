@@ -166,18 +166,44 @@ export async function POST(req: NextRequest) {
       };
     }
 
-    // Si trial === false :
-    // aucun trial_period_days n'est envoyé à Stripe.
-    // Le premier paiement est donc demandé immédiatement.
-
+   
     // ============================================================
     // 8. CLIENT STRIPE
     // ============================================================
-    if (user.stripeCustomerId) {
-      sessionConfig.customer = user.stripeCustomerId;
-    } else {
-      sessionConfig.customer_email = user.email;
-    }
+    
+let customerId = user.stripeCustomerId;
+
+if (!customerId) {
+  const isStripeTestMode =
+    process.env.STRIPE_SECRET_KEY?.startsWith('sk_test_');
+
+  const testClockId =
+    isStripeTestMode
+      ? process.env.STRIPE_TEST_CLOCK_ID || null
+      : null;
+
+  const customer = await stripe.customers.create({
+    email: user.email,
+
+    ...(testClockId
+      ? {
+          test_clock: testClockId,
+        }
+      : {}),
+  });
+
+  customerId = customer.id;
+
+  await sql`
+    UPDATE "User"
+    SET "stripeCustomerId" = ${customerId}
+    WHERE id = ${userId}
+  `;
+}
+
+sessionConfig.customer = customerId;
+
+
 
     // ============================================================
     // 9. CRÉER CHECKOUT

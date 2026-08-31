@@ -45,14 +45,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Utilisateur introuvable." }, { status: 404 });
     }
 
-    let customerId = user.stripeCustomerId;
+   let customerId = user.stripeCustomerId;
 
-    // 3. Si pas d'ID Stripe, on en crée un automatiquement chez Stripe
-    if (!customerId) {
-      const customer = await stripe.customers.create({
-        email: user.email,
-      });
-      customerId = customer.id;
+// ============================================================
+// CRÉER LE CLIENT STRIPE
+// ============================================================
+
+if (!customerId) {
+  const testClockId =
+    process.env.STRIPE_TEST_CLOCK_ID || null;
+
+  const customer = await stripe.customers.create({
+    email: user.email,
+
+    // Seulement utilisé lorsqu'une Test Clock est configurée
+    ...(testClockId
+      ? {
+          test_clock: testClockId,
+        }
+      : {}),
+  });
+
+  customerId = customer.id;
 
       // On sauvegarde l'ID fraîchement créé dans Neon
       await sql`
