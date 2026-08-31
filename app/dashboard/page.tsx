@@ -1384,7 +1384,7 @@ const handleChoosePlan = () => {
                       year: 'numeric',
                       month: 'long',
                       day: 'numeric',
-                      timeZone: 'America/Toronto',
+                      timeZone: 'UTC',
                     })
                     : 'terme de la période'}
                 </strong>.
