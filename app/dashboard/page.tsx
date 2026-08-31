@@ -1528,7 +1528,8 @@ const handleChoosePlan = () => {
                     {new Date(currentPeriodEnd).toLocaleDateString('fr-CA', {
                       year: 'numeric',
                       month: 'long',
-                      day: 'numeric'
+                      day: 'numeric',
+                      timeZone: 'UTC',
                     })}
                   </strong>
                 </p>
