@@ -1501,7 +1501,8 @@ const handleChoosePlan = () => {
                     ? new Date(cancelAt || currentPeriodEnd || '').toLocaleDateString('fr-CA', {
                         year: 'numeric',
                         month: 'long',
-                        day: 'numeric'
+                        day: 'numeric',
+                        timeZone: 'UTC',
                       })
                     : 'terme de la période'}
                 </strong>.
