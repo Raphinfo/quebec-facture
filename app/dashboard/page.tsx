@@ -45,6 +45,10 @@ function DashboardContent() {
 
   useEffect(() => {
     switch (tabParam) {
+      
+      case 'billing':
+      setActiveTab('billing');
+      break;
       case 'company':
       case 'profile':
         setActiveTab('profile');

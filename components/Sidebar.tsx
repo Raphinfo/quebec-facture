@@ -9,7 +9,7 @@ function SidebarContent() {
   const currentTab = searchParams.get("tab");
 
 const mainLinks = [
-  { name: "Facturation", tab: null, href: "/dashboard", icon: "🧾" },
+  { name: "Facturation", tab: "billing", href: "/dashboard?tab=billing", icon: "🧾"  },
   { name: "Soumissions", tab: "quotes", href: "/dashboard?tab=quotes", icon: "📋" },
   { name: "Données de l'entreprise", tab: "company", href: "/dashboard?tab=company", icon: "🏢" },
   { name: "Dépenses", tab: "expenses", href: "/dashboard?tab=expenses", icon: "💸" },
