@@ -9,23 +9,32 @@ generator client {
 // --- ÉNUMÉRATIONS ---
 
 enum SubscriptionStatus {
-  TRIALING  // Essai gratuit en cours
-  ACTIVE    // Abonnement payé et actif
-  PAST_DUE  // Échec de paiement / renouvellement en retard
-  CANCELED  // Abonnement annulé
+  TRIALING // Essai gratuit en cours
+  ACTIVE // Abonnement payé et actif
+  PAST_DUE // Échec de paiement / renouvellement en retard
+  CANCELED // Abonnement annulé
 }
 
 enum InvoiceStatus {
-  PENDING   // En attente de paiement
-  PAID      // Facture acquittée
-  CANCELED  // Facture annulée
+  PENDING // En attente de paiement
+  PAID // Facture acquittée
+  CANCELED // Facture annulée
+}
+
+enum QuoteStatus {
+  DRAFT // Brouillon
+  SENT // Envoyée au client
+  ACCEPTED // Acceptée par le client
+  REJECTED // Refusée par le client
+  EXPIRED // Date de validité dépassée
+  CONVERTED // Convertie en facture
 }
 
 // --- MODÈLES ---
 
 model User {
-  id             String    @id @default(uuid())
-  email          String    @unique
+  id             String  @id @default(uuid())
+  email          String  @unique
   password       String
   companyName    String?
   neq            String?
@@ -34,11 +43,13 @@ model User {
   address        String?
   companyAddress String?
 
-  invoices       Invoice[]
-  clients        Client[]
-  expenses       Expense[]
+  // --- RELATIONS ---
+  invoices Invoice[]
+  clients  Client[]
+  expenses Expense[]
+  quotes   Quote[]
 
-  createdAt      DateTime @default(now())
+  createdAt DateTime @default(now())
 
   // --- ABONNEMENT ---
   subscriptionStatus SubscriptionStatus @default(ACTIVE)
@@ -50,41 +61,86 @@ model User {
 }
 
 model Invoice {
-  id            String        @id @default(uuid())
-  invoiceNumber String        
-  amountSubtotal Decimal      @db.Decimal(10, 2)
-  tpsAmount     Decimal       @db.Decimal(10, 2)
-  tvqAmount     Decimal       @db.Decimal(10, 2)
-  amountTotal   Decimal       @db.Decimal(10, 2)
-  items         Json          // Stockage JSON natif pour le multi-ligne
-  status        InvoiceStatus @default(PENDING) // Utilisation de l'Enum
-  createdAt     DateTime      @default(now())
-  userId        String
-  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  clientId      String        
-  client        Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  id             String        @id @default(uuid())
+  invoiceNumber  String
+  amountSubtotal Decimal       @db.Decimal(10, 2)
+  tpsAmount      Decimal       @db.Decimal(10, 2)
+  tvqAmount      Decimal       @db.Decimal(10, 2)
+  amountTotal    Decimal       @db.Decimal(10, 2)
+  items          Json
+  status         InvoiceStatus @default(PENDING)
+  createdAt      DateTime      @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  clientId Int
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+model Quote {
+  id          String @id @default(uuid())
+  quoteNumber String
+
+  amountSubtotal Decimal @db.Decimal(10, 2)
+  tpsAmount      Decimal @db.Decimal(10, 2)
+  tvqAmount      Decimal @db.Decimal(10, 2)
+  amountTotal    Decimal @db.Decimal(10, 2)
+
+  // Lignes de la soumission
+  // Même principe que Invoice.items
+  items Json
+
+  status QuoteStatus @default(DRAFT)
+
+  // Date jusqu'à laquelle la soumission est valide
+  validUntil DateTime?
+
+  // Notes ou conditions particulières
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // --- UTILISATEUR ---
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // --- CLIENT ---
+  clientId Int
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  // Un entrepreneur ne peut pas avoir deux soumissions
+  // avec le même numéro.
+  @@unique([userId, quoteNumber])
 }
 
 model Client {
-  id          String    @id @default(uuid())
+  id Int @id @default(autoincrement())
   name        String
   companyName String?
-  neq         String?   // NEQ du client
+  neq         String?
   address     String?
   email       String?
   phone       String?
-  userId      String    
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  invoices    Invoice[] 
-  createdAt   DateTime  @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // --- RELATIONS ---
+  invoices Invoice[]
+  quotes   Quote[]
+
+  createdAt DateTime @default(now())
 }
 
 model Expense {
   id          String   @id @default(uuid())
   description String
   amount      Decimal  @db.Decimal(10, 2)
-  category    String   // Ex: Équipement, Transport, Logiciels
+  category    String
   createdAt   DateTime @default(now())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

@@ -8,13 +8,14 @@ function SidebarContent() {
   const searchParams = useSearchParams();
   const currentTab = searchParams.get("tab");
 
-  const mainLinks = [
-    { name: "Facturation", tab: null, href: "/dashboard", icon: "📊" },
-    { name: "Données de l'entreprise", tab: "company", href: "/dashboard?tab=company", icon: "🏢" },
-    { name: "Dépenses", tab: "expenses", href: "/dashboard?tab=expenses", icon: "💸" },
-    { name: "Confidentialité (Loi 25)", tab: "privacy", href: "/dashboard?tab=privacy", icon: "🛡️" },
-    { name: "Abonnement", tab: "subscription", href: "/dashboard?tab=subscription", icon: "💳" },
-  ];
+const mainLinks = [
+  { name: "Facturation", tab: null, href: "/dashboard", icon: "🧾" },
+  { name: "Soumissions", tab: "quotes", href: "/dashboard?tab=quotes", icon: "📋" },
+  { name: "Données de l'entreprise", tab: "company", href: "/dashboard?tab=company", icon: "🏢" },
+  { name: "Dépenses", tab: "expenses", href: "/dashboard?tab=expenses", icon: "💸" },
+  { name: "Confidentialité (Loi 25)", tab: "privacy", href: "/dashboard?tab=privacy", icon: "🛡️" },
+  { name: "Abonnement", tab: "subscription", href: "/dashboard?tab=subscription", icon: "💳" },
+];
 
   return (
     <aside className="w-64 bg-slate-900 text-white h-screen sticky top-0 p-4 flex flex-col justify-between border-r border-slate-800 shrink-0 overflow-y-auto">

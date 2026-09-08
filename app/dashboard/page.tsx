@@ -4,6 +4,9 @@ import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import DashboardHeader from '@/components/DashboardHeader';
+import QuotesSection from "@/components/QuotesSection";
+
+
 
 interface Expense {
   id: string;
@@ -15,6 +18,7 @@ interface Expense {
 
 type ActiveTab =
   | 'billing'
+  | 'quotes'
   | 'profile'
   | 'privacy'
   | 'expenses'
@@ -46,6 +50,9 @@ function DashboardContent() {
         setActiveTab('profile');
         break;
 
+      case 'quotes':
+        setActiveTab('quotes');
+        break;
       case 'expenses':
         setActiveTab('expenses');
         break;
@@ -784,295 +791,1199 @@ const handleChoosePlan = () => {
   if (checkingAuth) return <div style={{ padding: '40px', fontFamily: 'sans-serif' }}>Vérification de la session...</div>;
   if (!authorized) return <div style={{ padding: '40px' }}>🔒 Accès Refusé</div>;
 
-  return (
-    <div style={{ padding: '10px 20px', fontFamily: 'sans-serif', maxWidth: '1400px', margin: '0 auto' }}>
+    return (
+  <div
+    style={{
+      padding: '10px 20px',
+      fontFamily: 'sans-serif',
+      maxWidth: '1400px',
+      margin: '0 auto',
+      minHeight: '100vh',
+      backgroundColor: 'var(--background)',
+      color: 'var(--foreground)',
+      transition: 'background-color 0.25s ease, color 0.25s ease',
+    }}
+  >
       
       {/* NOURRICE DE L'EN-TÊTE ÉPURÉ (DashboardHeader) */}
       <DashboardHeader userName={userProfile.companyName || "Entrepreneur"} />
 
       {/* RENDER DES CARTES DE STATISTIQUES FINANCIÈRES (VISIBLES EN FACTURATION) */}
-      {activeTab === 'billing' && (
-        <div style={{ display: 'flex', gap: '20px', width: '100%', marginBottom: '30px' }}>
-          <div style={{ flex: 1, backgroundColor: '#ebf8ff', border: '1px solid #bee3f8', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
-            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#2b6cb0', textTransform: 'uppercase', letterSpacing: '0.05em' }}>📈 Volume global</span>
-            <h3 style={{ margin: '10px 0 0 0', fontSize: '24px', color: '#2c5282', fontWeight: 'bold' }}>
-              {statsTotalRevenue.toFixed(2)} $
-            </h3>
-            <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#4a5568' }}>Total de toutes les factures émises</p>
-          </div>
+     {activeTab === 'billing' && (
+  <div
+    style={{
+      display: 'flex',
+      gap: '20px',
+      width: '100%',
+      marginBottom: '30px',
+      flexWrap: 'wrap',
+    }}
+  >
+    {/* Volume global */}
+    <div
+      style={{
+        flex: '1 1 220px',
+        backgroundColor: 'var(--surface)',
+        border: '1px solid var(--border)',
+        padding: '20px',
+        borderRadius: '8px',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
+      }}
+    >
+      <span
+        style={{
+          fontSize: '12px',
+          fontWeight: 'bold',
+          color: 'var(--primary)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+        }}
+      >
+        📈 Volume global
+      </span>
 
-          <div style={{ flex: 1, backgroundColor: '#e6fffa', border: '1px solid #b2f5ea', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
-            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#319795', textTransform: 'uppercase', letterSpacing: '0.05em' }}>💰 Revenus Encaissés</span>
-            <h3 style={{ margin: '10px 0 0 0', fontSize: '24px', color: '#234e52', fontWeight: 'bold' }}>
-              {statsPaid.toFixed(2)} $
-            </h3>
-            <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#4a5568' }}>Argent reçu en banque</p>
-          </div>
+      <h3
+        style={{
+          margin: '10px 0 0 0',
+          fontSize: '24px',
+          color: 'var(--foreground)',
+          fontWeight: 'bold',
+        }}
+      >
+        {statsTotalRevenue.toFixed(2)} $
+      </h3>
 
-          <div style={{ flex: 1, backgroundColor: '#fffaf0', border: '1px solid #feebc8', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
-            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#dd6b20', textTransform: 'uppercase', letterSpacing: '0.05em' }}>⏳ Comptes à recevoir</span>
-            <h3 style={{ margin: '10px 0 0 0', fontSize: '24px', color: '#7b341e', fontWeight: 'bold' }}>
-              {statsPending.toFixed(2)} $
-            </h3>
-            <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#4a5568' }}>Factures en attente de paiement</p>
-          </div>
+      <p
+        style={{
+          margin: '4px 0 0 0',
+          fontSize: '11px',
+          color: 'var(--text-muted)',
+        }}
+      >
+        Total de toutes les factures émises
+      </p>
+    </div>
 
-          <div style={{ flex: 1, backgroundColor: statsNetRevenue >= 0 ? '#f0fff4' : '#fff5f5', border: statsNetRevenue >= 0 ? '1px solid #c6f6d5' : '1px solid #fed7d7', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
-            <span style={{ fontSize: '12px', fontWeight: 'bold', color: statsNetRevenue >= 0 ? '#38a169' : '#e53e3e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>📊 Revenu Net Réel</span>
-            <h3 style={{ margin: '10px 0 0 0', fontSize: '24px', color: statsNetRevenue >= 0 ? '#22543d' : '#9b2c2c', fontWeight: 'bold' }}>{statsNetRevenue.toFixed(2)} $</h3>
-            <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#4a5568' }}>Encaissé moins les dépenses</p>
-          </div>
+    {/* Revenus encaissés */}
+    <div
+      style={{
+        flex: '1 1 220px',
+        backgroundColor: 'var(--surface)',
+        border: '1px solid var(--border)',
+        padding: '20px',
+        borderRadius: '8px',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
+      }}
+    >
+      <span
+        style={{
+          fontSize: '12px',
+          fontWeight: 'bold',
+          color: 'var(--success)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+        }}
+      >
+        💰 Revenus encaissés
+      </span>
+
+      <h3
+        style={{
+          margin: '10px 0 0 0',
+          fontSize: '24px',
+          color: 'var(--foreground)',
+          fontWeight: 'bold',
+        }}
+      >
+        {statsPaid.toFixed(2)} $
+      </h3>
+
+      <p
+        style={{
+          margin: '4px 0 0 0',
+          fontSize: '11px',
+          color: 'var(--text-muted)',
+        }}
+      >
+        Argent reçu en banque
+      </p>
+    </div>
+
+    {/* Comptes à recevoir */}
+    <div
+      style={{
+        flex: '1 1 220px',
+        backgroundColor: 'var(--surface)',
+        border: '1px solid var(--border)',
+        padding: '20px',
+        borderRadius: '8px',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
+      }}
+    >
+      <span
+        style={{
+          fontSize: '12px',
+          fontWeight: 'bold',
+          color: 'var(--warning)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+        }}
+      >
+        ⏳ Comptes à recevoir
+      </span>
+
+      <h3
+        style={{
+          margin: '10px 0 0 0',
+          fontSize: '24px',
+          color: 'var(--foreground)',
+          fontWeight: 'bold',
+        }}
+      >
+        {statsPending.toFixed(2)} $
+      </h3>
+
+      <p
+        style={{
+          margin: '4px 0 0 0',
+          fontSize: '11px',
+          color: 'var(--text-muted)',
+        }}
+      >
+        Factures en attente de paiement
+      </p>
+    </div>
+
+    {/* Revenu net */}
+    <div
+      style={{
+        flex: '1 1 220px',
+        backgroundColor: 'var(--surface)',
+        border: `1px solid ${
+          statsNetRevenue >= 0
+            ? 'var(--success)'
+            : 'var(--danger)'
+        }`,
+        padding: '20px',
+        borderRadius: '8px',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
+      }}
+    >
+      <span
+        style={{
+          fontSize: '12px',
+          fontWeight: 'bold',
+          color:
+            statsNetRevenue >= 0
+              ? 'var(--success)'
+              : 'var(--danger)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+        }}
+      >
+        📊 Revenu net réel
+      </span>
+
+      <h3
+        style={{
+          margin: '10px 0 0 0',
+          fontSize: '24px',
+          color: 'var(--foreground)',
+          fontWeight: 'bold',
+        }}
+      >
+        {statsNetRevenue.toFixed(2)} $
+      </h3>
+
+      <p
+        style={{
+          margin: '4px 0 0 0',
+          fontSize: '11px',
+          color: 'var(--text-muted)',
+        }}
+      >
+        Encaissé moins les dépenses
+      </p>
+    </div>
+  </div>
+)}
+
+      {/* AFFICHAGE EN FONCTION DE L'ONGLET SÉLECTIONNÉ */}
+      {activeTab === 'quotes' ? (
+  <QuotesSection />
+) : activeTab === 'profile' ? (
+  /* ONGLET PROFIL COMPAGNIE */
+  <div
+    style={{
+      width: '100%',
+      maxWidth: '500px',
+      margin: '0 auto',
+    }}
+  >
+    <section
+      style={{
+        border: '1px solid var(--border)',
+        padding: '25px',
+        borderRadius: '8px',
+        backgroundColor: 'var(--surface)',
+        color: 'var(--foreground)',
+        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.12)',
+      }}
+    >
+      <h2
+        style={{
+          marginTop: 0,
+          fontSize: '18px',
+          color: 'var(--foreground)',
+          marginBottom: '20px',
+        }}
+      >
+        🏢 Configurer l'émetteur des factures
+      </h2>
+
+      {profileMessage && (
+        <div
+          style={{
+            backgroundColor: profileMessage.includes('⚠️')
+              ? 'rgba(245, 158, 11, 0.12)'
+              : 'rgba(34, 197, 94, 0.12)',
+            color: profileMessage.includes('⚠️')
+              ? 'var(--warning)'
+              : 'var(--success)',
+            padding: '8px',
+            borderRadius: '4px',
+            marginBottom: '15px',
+            fontSize: '13px',
+            fontWeight: 'bold',
+            border: `1px solid ${
+              profileMessage.includes('⚠️')
+                ? 'var(--warning)'
+                : 'var(--success)'
+            }`,
+          }}
+        >
+          {profileMessage}
         </div>
       )}
 
-      {/* AFFICHAGE EN FONCTION DE L'ONGLET SÉLECTIONNÉ */}
-      {activeTab === 'profile' ? (
-        /* ONGLET PROFIL COMPAIGNIE */
-        <div style={{ width: '100%', maxWidth: '500px', margin: '0 auto' }}>
-          <section style={{ border: '1px solid #cbd5e0', padding: '25px', borderRadius: '8px', backgroundColor: '#fff', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-            <h2 style={{ marginTop: 0, fontSize: '18px', color: '#4a5568', marginBottom: '20px' }}>🏢 Configurer l'émetteur des factures</h2>
-            {profileMessage && <div style={{ backgroundColor: profileMessage.includes('⚠️') ? '#fffaf0' : '#c6f6d5', color: profileMessage.includes('⚠️') ? '#dd6b20' : '#22543d', padding: '8px', borderRadius: '4px', marginBottom: '15px', fontSize: '13px', fontWeight: 'bold', border: profileMessage.includes('⚠️') ? '1px solid #fbd38d' : 'none' }}>{profileMessage}</div>}
-            <form onSubmit={handleUpdateProfile} noValidate>
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#4a5568', marginBottom: '8px' }}>
-                  Logo de l'entreprise (PNG, JPG ou WebP, max 1 Mo)
-                </label>
-                
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <label htmlFor="logo-upload" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '9px 16px', backgroundColor: '#edf2f7', color: '#2d3748', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', border: '1px solid #cbd5e0' }}>
-                    📁 Choisir une image...
-                  </label>
-                  <input id="logo-upload" type="file" accept="image/png, image/jpeg, image/webp" onChange={handleLogoChange} style={{ display: 'none' }} />
-                  {!userProfile.companyLogo && <span style={{ fontSize: '12px', color: '#a0aec0', fontStyle: 'italic' }}>Aucun logo sélectionné</span>}
-                </div>
+      <form onSubmit={handleUpdateProfile} noValidate>
+        <div style={{ marginBottom: '20px' }}>
+          <label
+            style={{
+              display: 'block',
+              fontSize: '13px',
+              fontWeight: 'bold',
+              color: 'var(--foreground)',
+              marginBottom: '8px',
+            }}
+          >
+            Logo de l'entreprise (PNG, JPG ou WebP, max 1 Mo)
+          </label>
 
-                {userProfile.companyLogo && (
-                  <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '15px', backgroundColor: '#f7fafc', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                    <img src={userProfile.companyLogo} alt="Aperçu du logo" style={{ maxHeight: '55px', maxWidth: '180px', objectFit: 'contain', border: '1px solid #cbd5e0', padding: '4px', borderRadius: '4px', backgroundColor: '#fff' }} />
-                    <button type="button" onClick={() => setUserProfile({ ...userProfile, companyLogo: '' })} style={{ padding: '5px 10px', backgroundColor: '#fff5f5', color: '#e53e3e', border: '1px solid #fed7d7', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                      🗑️ Retirer le logo
-                    </button>
-                  </div>
-                )}
-              </div>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+            }}
+          >
+            <label
+              htmlFor="logo-upload"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '9px 16px',
+                backgroundColor: 'var(--surface-soft)',
+                color: 'var(--foreground)',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: 'bold',
+                border: '1px solid var(--border)',
+              }}
+            >
+              📁 Choisir une image...
+            </label>
 
-              <div style={{ marginBottom: '12px' }}>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#718096', marginBottom: '4px' }}>Nom de l'entreprise *</label>
-                <input type="text" placeholder="Ex: Informatique Matane inc." value={userProfile.companyName || ''} onChange={(e) => setUserProfile({...userProfile, companyName: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} />
-              </div>
+            <input
+              id="logo-upload"
+              type="file"
+              accept="image/png, image/jpeg, image/webp"
+              onChange={handleLogoChange}
+              style={{ display: 'none' }}
+            />
 
-              <div style={{ marginBottom: '12px' }}>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#718096', marginBottom: '4px' }}>Adresse complète d'affaires *</label>
-                <input type="text" placeholder="Ex: 280 Rue Jacques-Cartier, Matane, QC" value={userProfile.companyAddress || ''} onChange={(e) => setUserProfile({...userProfile, companyAddress: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} />
-              </div>
-
-              <div style={{ display: 'flex', gap: '12px', marginBottom: '20px' }}>
-                <div style={{ width: '50%' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#718096', marginBottom: '4px' }}>Numéro de TPS *</label>
-                  <input type="text" placeholder="123456789RT0001" value={userProfile.tpsNumber || ''} onChange={(e) => setUserProfile({...userProfile, tpsNumber: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} />
-                </div>
-                <div style={{ width: '50%' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#718096', marginBottom: '4px' }}>Numéro de TVQ *</label>
-                  <input type="text" placeholder="1234567890TQ0001" value={userProfile.tvqNumber || ''} onChange={(e) => setUserProfile({...userProfile, tvqNumber: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} />
-                </div>
-              </div>
-
-              <button type="submit" style={{ width: '100%', padding: '10px', backgroundColor: '#4a5568', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>
-                {loadingProfile ? 'Enregistrement...' : '💾 Enregistrer le profil'}
-              </button>
-            </form>
-          </section>
-        </div>
-   ) : activeTab === 'privacy' ? (
-        /* 📄 ONGLET CONFIDENTIALITÉ & LOI 25 EXHAUSTIF */
-        <div style={{ width: '100%', maxWidth: '900px', margin: '0 auto', lineHeight: '1.6' }}>
-          <section style={{ border: '1px solid #cbd5e0', padding: '35px', borderRadius: '12px', backgroundColor: '#fff', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-            
-            {/* En-tête du document */}
-            <div style={{ borderBottom: '2px solid #edf2f7', paddingBottom: '15px', marginBottom: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div>
-                <h2 style={{ marginTop: 0, fontSize: '22px', color: '#2c5282', marginBottom: '6px' }}>
-                  🛡️ Politique de Confidentialité & Conformité Loi 25
-                </h2>
-                <p style={{ fontSize: '13px', color: '#718096', margin: 0 }}>
-                  Politique relative à la protection des renseignements personnels applicables au Québec.
-                </p>
-              </div>
-              <span style={{ backgroundColor: '#c6f6d5', color: '#22543d', padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold' }}>
-                ✅ Conforme Loi 25
+            {!userProfile.companyLogo && (
+              <span
+                style={{
+                  fontSize: '12px',
+                  color: 'var(--text-muted)',
+                  fontStyle: 'italic',
+                }}
+              >
+                Aucun logo sélectionné
               </span>
+            )}
+          </div>
+
+          {userProfile.companyLogo && (
+            <div
+              style={{
+                marginTop: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '15px',
+                backgroundColor: 'var(--surface-soft)',
+                padding: '10px',
+                borderRadius: '6px',
+                border: '1px solid var(--border)',
+              }}
+            >
+              <img
+                src={userProfile.companyLogo}
+                alt="Aperçu du logo"
+                style={{
+                  maxHeight: '55px',
+                  maxWidth: '180px',
+                  objectFit: 'contain',
+                  border: '1px solid var(--border)',
+                  padding: '4px',
+                  borderRadius: '4px',
+                  backgroundColor: '#fff',
+                }}
+              />
+
+              <button
+                type="button"
+                onClick={() =>
+                  setUserProfile({
+                    ...userProfile,
+                    companyLogo: '',
+                  })
+                }
+                style={{
+                  padding: '5px 10px',
+                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                  color: 'var(--danger)',
+                  border: '1px solid var(--danger)',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  fontWeight: 'bold',
+                }}
+              >
+                🗑️ Retirer le logo
+              </button>
             </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', color: '#4a5568', fontSize: '14px' }}>
-              
-              <div>
-                <h3 style={{ fontSize: '16px', color: '#2b6cb0', marginTop: 0, marginBottom: '8px' }}>
-                  1. Engagement et Champ d'Application
-                </h3>
-                <p style={{ margin: 0 }}>
-                  <strong>Québec Facture</strong> s'engage à protéger la vie privée et les renseignements personnels de ses utilisateurs et des clients de ces derniers. La présente politique décrit nos pratiques en matière de collecte, d'utilisation, de conservation et de destruction des données conformément à la <em>Loi sur la protection des renseignements personnels dans le secteur privé (Loi 25)</em> du Québec.
-                </p>
-              </div>
-
-              <div>
-                <h3 style={{ fontSize: '16px', color: '#2b6cb0', marginTop: 0, marginBottom: '8px' }}>
-                  2. Renseignements Personnels Collectés
-                </h3>
-                <p style={{ marginBottom: '8px', marginTop: 0 }}>
-                  Dans le cadre de l'utilisation de nos services de facturation et de comptabilité, nous traitons les données suivantes :
-                </p>
-                <ul style={{ paddingLeft: '20px', margin: 0 }}>
-                  <li style={{ marginBottom: '6px' }}>
-                    <strong>Données de l'utilisateur (Émetteur) :</strong> Raison sociale ou nom d'entreprise, adresse professionnelle, adresse courriel d'authentification, numéros d'inscription aux fichiers de taxes (TPS/TVQ) et identifiants de session.
-                  </li>
-                  <li style={{ marginBottom: '6px' }}>
-                    <strong>Données des clients finaux :</strong> Nom complet, nom d'entreprise affiliée, Numéro d'Entreprise du Québec (NEQ), adresse de facturation, courriel et numéro de téléphone.
-                  </li>
-                  <li>
-                    <strong>Données financières et dépenses :</strong> Montants des factures, lignes de services, historique des dépenses et reçus d'entreprise.
-                  </li>
-                </ul>
-              </div>
-
-              <div>
-                <h3 style={{ fontSize: '16px', color: '#2b6cb0', marginTop: 0, marginBottom: '8px' }}>
-                  3. Finalités du Traitement des Données
-                </h3>
-                <p style={{ margin: 0 }}>
-                  Les données sont traitées exclusivement pour :
-                </p>
-                <ul style={{ paddingLeft: '20px', marginTop: '6px', marginBottom: 0 }}>
-                  <li>La génération et l'impression de factures conformes aux règles fiscales québécoises (calcul TPS/TVQ).</li>
-                  <li>La tenue de registres de dépenses d'affaires et le calcul du Revenu Net Réel.</li>
-                  <li>La gestion de votre abonnement et le traitement des paiements sécurisés via Stripe.</li>
-                  <li>La prévention des fraudes et l'assurance de la sécurité des sessions.</li>
-                </ul>
-              </div>
-
-              <div>
-                <h3 style={{ fontSize: '16px', color: '#2b6cb0', marginTop: 0, marginBottom: '8px' }}>
-                  4. Hébergement et Mesures de Sécurité
-                </h3>
-                <p style={{ margin: 0 }}>
-                  Vos données sont hébergées sur une infrastructure de base de données PostgreSQL isolée (Neon Serverless) utilisant un chiffrement fort au repos et en transit (TLS/SSL). Les données bancaires ne sont jamais stockées sur nos serveurs : toutes les transactions sont déléguées à l'infrastructure certifiée PCI-DSS de <strong>Stripe</strong>.
-                </p>
-              </div>
-
-              <div>
-                <h3 style={{ fontSize: '16px', color: '#2b6cb0', marginTop: 0, marginBottom: '8px' }}>
-                  5. Droits des Personnes Concernées (Accès, Rectification, Suppression)
-                </h3>
-                <p style={{ margin: 0 }}>
-                  Conformément à la Loi 25, vous disposez d'un droit d'accès, de rectification et de suppression (droit à l'oubli) concernant vos renseignements personnels :
-                </p>
-                <ul style={{ paddingLeft: '20px', marginTop: '6px', marginBottom: 0 }}>
-                  <li>Vous pouvez rectifier vos données d'entreprise dans l'onglet <strong>Données de l'entreprise</strong>.</li>
-                  <li>Vous pouvez supprimer définitivement un client, une dépense ou une facture via le bouton <strong>Supprimer</strong>. Cette opération efface définitivement l'enregistrement de la base de données.</li>
-                </ul>
-              </div>
-
-              <div>
-                <h3 style={{ fontSize: '16px', color: '#2b6cb0', marginTop: 0, marginBottom: '8px' }}>
-                  6. Incident de Confidentialité
-                </h3>
-                <p style={{ margin: 0 }}>
-                  En cas d'incident de sécurité ou de fuite de données présentant un risque de préjudice sérieux, Québec Facture avisera promptement la <em>Commission d'accès à l'information du Québec (CAI)</em> ainsi que les utilisateurs touchés, conformément aux exigences légales.
-                </p>
-              </div>
-
-              {/* Bloc Responsable de la protection des données */}
-              <div style={{ backgroundColor: '#ebf8ff', padding: '18px', borderRadius: '8px', border: '1px solid #bee3f8', marginTop: '10px' }}>
-                <h4 style={{ margin: '0 0 6px 0', color: '#2c5282', fontSize: '15px' }}>
-                  👤 Responsable de la protection des renseignements personnels (RPRP)
-                </h4>
-                <p style={{ margin: 0, fontSize: '13px', lineHeight: '1.5' }}>
-                  Pour toute question, demande d'accès ou plainte relative à vos renseignements personnels :<br />
-                  <strong>Responsable :</strong> Direction de la conformité — Québec Facture<br />
-                  <strong>Courriel :</strong> <a href="mailto:support@quebecfacture.com" style={{ color: '#3182ce', fontWeight: 'bold' }}>support@quebecfacture.com</a><br />
-                  <strong>Emplacement :</strong> Matane, Québec, Canada
-                </p>
-              </div>
-
-            </div>
-
-          </section>
+          )}
         </div>
-          
+
+        <div style={{ marginBottom: '12px' }}>
+          <label
+            style={{
+              display: 'block',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              color: 'var(--text-muted)',
+              marginBottom: '4px',
+            }}
+          >
+            Nom de l'entreprise *
+          </label>
+
+          <input
+            type="text"
+            placeholder="Ex: Informatique Matane inc."
+            value={userProfile.companyName || ''}
+            onChange={(e) =>
+              setUserProfile({
+                ...userProfile,
+                companyName: e.target.value,
+              })
+            }
+            style={{
+              width: '100%',
+              padding: '8px',
+              borderRadius: '4px',
+              border: '1px solid var(--border)',
+              backgroundColor: 'var(--surface-soft)',
+              color: 'var(--foreground)',
+              boxSizing: 'border-box',
+            }}
+          />
+        </div>
+
+        <div style={{ marginBottom: '12px' }}>
+          <label
+            style={{
+              display: 'block',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              color: 'var(--text-muted)',
+              marginBottom: '4px',
+            }}
+          >
+            Adresse complète d'affaires *
+          </label>
+
+          <input
+            type="text"
+            placeholder="Ex: 280 Rue Jacques-Cartier, Matane, QC"
+            value={userProfile.companyAddress || ''}
+            onChange={(e) =>
+              setUserProfile({
+                ...userProfile,
+                companyAddress: e.target.value,
+              })
+            }
+            style={{
+              width: '100%',
+              padding: '8px',
+              borderRadius: '4px',
+              border: '1px solid var(--border)',
+              backgroundColor: 'var(--surface-soft)',
+              color: 'var(--foreground)',
+              boxSizing: 'border-box',
+            }}
+          />
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            gap: '12px',
+            marginBottom: '20px',
+          }}
+        >
+          <div style={{ width: '50%' }}>
+            <label
+              style={{
+                display: 'block',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                color: 'var(--text-muted)',
+                marginBottom: '4px',
+              }}
+            >
+              Numéro de TPS *
+            </label>
+
+            <input
+              type="text"
+              placeholder="123456789RT0001"
+              value={userProfile.tpsNumber || ''}
+              onChange={(e) =>
+                setUserProfile({
+                  ...userProfile,
+                  tpsNumber: e.target.value,
+                })
+              }
+              style={{
+                width: '100%',
+                padding: '8px',
+                borderRadius: '4px',
+                border: '1px solid var(--border)',
+                backgroundColor: 'var(--surface-soft)',
+                color: 'var(--foreground)',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
+
+          <div style={{ width: '50%' }}>
+            <label
+              style={{
+                display: 'block',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                color: 'var(--text-muted)',
+                marginBottom: '4px',
+              }}
+            >
+              Numéro de TVQ *
+            </label>
+
+            <input
+              type="text"
+              placeholder="1234567890TQ0001"
+              value={userProfile.tvqNumber || ''}
+              onChange={(e) =>
+                setUserProfile({
+                  ...userProfile,
+                  tvqNumber: e.target.value,
+                })
+              }
+              style={{
+                width: '100%',
+                padding: '8px',
+                borderRadius: '4px',
+                border: '1px solid var(--border)',
+                backgroundColor: 'var(--surface-soft)',
+                color: 'var(--foreground)',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          style={{
+            width: '100%',
+            padding: '10px',
+            backgroundColor: 'var(--primary)',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontWeight: 'bold',
+            fontSize: '14px',
+          }}
+        >
+          {loadingProfile
+            ? 'Enregistrement...'
+            : '💾 Enregistrer le profil'}
+        </button>
+      </form>
+    </section>
+  </div>
+) : activeTab === 'privacy' ? (
+     /* 📄 ONGLET CONFIDENTIALITÉ & LOI 25 EXHAUSTIF */
+    <div
+      style={{
+        width: '100%',
+        maxWidth: '900px',
+        margin: '0 auto',
+        lineHeight: '1.6',
+      }}
+    >
+      <section
+        style={{
+          border: '1px solid var(--border)',
+          padding: '35px',
+          borderRadius: '12px',
+          backgroundColor: 'var(--surface)',
+          color: 'var(--foreground)',
+          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.12)',
+        }}
+      >
+        {/* En-tête du document */}
+        <div
+          style={{
+            borderBottom: '2px solid var(--border)',
+            paddingBottom: '15px',
+            marginBottom: '25px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            gap: '20px',
+          }}
+        >
+          <div>
+            <h2
+              style={{
+                marginTop: 0,
+                fontSize: '22px',
+                color: 'var(--primary)',
+                marginBottom: '6px',
+              }}
+            >
+              🛡️ Politique de Confidentialité & Conformité Loi 25
+            </h2>
+
+            <p
+              style={{
+                fontSize: '13px',
+                color: 'var(--text-muted)',
+                margin: 0,
+              }}
+            >
+              Politique relative à la protection des renseignements personnels
+              applicables au Québec.
+            </p>
+          </div>
+
+          <span
+            style={{
+              backgroundColor: 'rgba(34, 197, 94, 0.12)',
+              color: 'var(--success)',
+              border: '1px solid var(--success)',
+              padding: '4px 12px',
+              borderRadius: '20px',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            ✅ Conforme Loi 25
+          </span>
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '24px',
+            color: 'var(--foreground)',
+            fontSize: '14px',
+          }}
+        >
+          <div>
+            <h3
+              style={{
+                fontSize: '16px',
+                color: 'var(--primary)',
+                marginTop: 0,
+                marginBottom: '8px',
+              }}
+            >
+              1. Engagement et Champ d'Application
+            </h3>
+
+            <p style={{ margin: 0 }}>
+              <strong>Québec Facture</strong> s'engage à protéger la vie privée
+              et les renseignements personnels de ses utilisateurs et des clients
+              de ces derniers. La présente politique décrit nos pratiques en
+              matière de collecte, d'utilisation, de conservation et de
+              destruction des données conformément à la{' '}
+              <em>
+                Loi sur la protection des renseignements personnels dans le
+                secteur privé (Loi 25)
+              </em>{' '}
+              du Québec.
+            </p>
+          </div>
+
+          <div>
+            <h3
+              style={{
+                fontSize: '16px',
+                color: 'var(--primary)',
+                marginTop: 0,
+                marginBottom: '8px',
+              }}
+            >
+              2. Renseignements Personnels Collectés
+            </h3>
+
+            <p style={{ marginBottom: '8px', marginTop: 0 }}>
+              Dans le cadre de l'utilisation de nos services de facturation et
+              de comptabilité, nous traitons les données suivantes :
+            </p>
+
+            <ul style={{ paddingLeft: '20px', margin: 0 }}>
+              <li style={{ marginBottom: '6px' }}>
+                <strong>Données de l'utilisateur (Émetteur) :</strong> Raison
+                sociale ou nom d'entreprise, adresse professionnelle, adresse
+                courriel d'authentification, numéros d'inscription aux fichiers
+                de taxes (TPS/TVQ) et identifiants de session.
+              </li>
+
+              <li style={{ marginBottom: '6px' }}>
+                <strong>Données des clients finaux :</strong> Nom complet, nom
+                d'entreprise affiliée, Numéro d'Entreprise du Québec (NEQ),
+                adresse de facturation, courriel et numéro de téléphone.
+              </li>
+
+              <li>
+                <strong>Données financières et dépenses :</strong> Montants des
+                factures, lignes de services, historique des dépenses et reçus
+                d'entreprise.
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <h3
+              style={{
+                fontSize: '16px',
+                color: 'var(--primary)',
+                marginTop: 0,
+                marginBottom: '8px',
+              }}
+            >
+              3. Finalités du Traitement des Données
+            </h3>
+
+            <p style={{ margin: 0 }}>
+              Les données sont traitées exclusivement pour :
+            </p>
+
+            <ul
+              style={{
+                paddingLeft: '20px',
+                marginTop: '6px',
+                marginBottom: 0,
+              }}
+            >
+              <li>
+                La génération et l'impression de factures conformes aux règles
+                fiscales québécoises (calcul TPS/TVQ).
+              </li>
+              <li>
+                La tenue de registres de dépenses d'affaires et le calcul du
+                Revenu Net Réel.
+              </li>
+              <li>
+                La gestion de votre abonnement et le traitement des paiements
+                sécurisés via Stripe.
+              </li>
+              <li>
+                La prévention des fraudes et l'assurance de la sécurité des
+                sessions.
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <h3
+              style={{
+                fontSize: '16px',
+                color: 'var(--primary)',
+                marginTop: 0,
+                marginBottom: '8px',
+              }}
+            >
+              4. Hébergement et Mesures de Sécurité
+            </h3>
+
+            <p style={{ margin: 0 }}>
+              Vos données sont hébergées sur une infrastructure de base de
+              données PostgreSQL isolée (Neon Serverless) utilisant un
+              chiffrement fort au repos et en transit (TLS/SSL). Les données
+              bancaires ne sont jamais stockées sur nos serveurs : toutes les
+              transactions sont déléguées à l'infrastructure certifiée PCI-DSS
+              de <strong>Stripe</strong>.
+            </p>
+          </div>
+
+          <div>
+            <h3
+              style={{
+                fontSize: '16px',
+                color: 'var(--primary)',
+                marginTop: 0,
+                marginBottom: '8px',
+              }}
+            >
+              5. Droits des Personnes Concernées (Accès, Rectification, Suppression)
+            </h3>
+
+            <p style={{ margin: 0 }}>
+              Conformément à la Loi 25, vous disposez d'un droit d'accès, de
+              rectification et de suppression (droit à l'oubli) concernant vos
+              renseignements personnels :
+            </p>
+
+            <ul
+              style={{
+                paddingLeft: '20px',
+                marginTop: '6px',
+                marginBottom: 0,
+              }}
+            >
+              <li>
+                Vous pouvez rectifier vos données d'entreprise dans l'onglet{' '}
+                <strong>Données de l'entreprise</strong>.
+              </li>
+              <li>
+                Vous pouvez supprimer définitivement un client, une dépense ou
+                une facture via le bouton <strong>Supprimer</strong>. Cette
+                opération efface définitivement l'enregistrement de la base de
+                données.
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <h3
+              style={{
+                fontSize: '16px',
+                color: 'var(--primary)',
+                marginTop: 0,
+                marginBottom: '8px',
+              }}
+            >
+              6. Incident de Confidentialité
+            </h3>
+
+            <p style={{ margin: 0 }}>
+              En cas d'incident de sécurité ou de fuite de données présentant un
+              risque de préjudice sérieux, Québec Facture avisera promptement la{' '}
+              <em>Commission d'accès à l'information du Québec (CAI)</em> ainsi
+              que les utilisateurs touchés, conformément aux exigences légales.
+            </p>
+          </div>
+
+          {/* Bloc Responsable de la protection des données */}
+          <div
+            style={{
+              backgroundColor: 'var(--surface-soft)',
+              padding: '18px',
+              borderRadius: '8px',
+              border: '1px solid var(--border)',
+              marginTop: '10px',
+            }}
+          >
+            <h4
+              style={{
+                margin: '0 0 6px 0',
+                color: 'var(--primary)',
+                fontSize: '15px',
+              }}
+            >
+              👤 Responsable de la protection des renseignements personnels (RPRP)
+            </h4>
+
+            <p
+              style={{
+                margin: 0,
+                fontSize: '13px',
+                lineHeight: '1.5',
+                color: 'var(--foreground)',
+              }}
+            >
+              Pour toute question, demande d'accès ou plainte relative à vos
+              renseignements personnels :
+              <br />
+
+              <strong>Responsable :</strong> Direction de la conformité — Québec Facture
+              <br />
+
+              <strong>Courriel :</strong>{' '}
+              <a
+                href="mailto:support@quebecfacture.com"
+                style={{
+                  color: 'var(--primary)',
+                  fontWeight: 'bold',
+                }}
+              >
+                support@quebecfacture.com
+              </a>
+              <br />
+
+              <strong>Emplacement :</strong> Matane, Québec, Canada
+            </p>
+          </div>
+        </div>
+      </section>
+    </div>
+              
       
       ) : activeTab === 'expenses' ? (
         /* ONGLET GESTION DES DÉPENSES */
         <div style={{ display: 'flex', gap: '40px', alignItems: 'flex-start', width: '100%' }}>
           <div style={{ width: '380px', flexShrink: 0 }}>
-            <section style={{ border: '1px solid #cbd5e0', padding: '25px', borderRadius: '8px', backgroundColor: '#fff', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-              <h2 style={{ marginTop: 0, fontSize: '18px', color: '#e53e3e', marginBottom: '20px' }}>📉 Saisir une dépense d'affaires</h2>
-              {expenseMessage && <div style={{ backgroundColor: '#c6f6d5', color: '#22543d', padding: '8px', borderRadius: '4px', marginBottom: '15px', fontSize: '12px' }}>{expenseMessage}</div>}
-              {expenseError && <div style={{ backgroundColor: '#fed7d7', color: '#9b2c2c', padding: '8px', borderRadius: '4px', marginBottom: '15px', fontSize: '12px' }}>{expenseError}</div>}
-              
-              <form onSubmit={handleAddExpense}>
-                <div style={{ marginBottom: '12px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#718096', marginBottom: '4px' }}>Description *</label>
-                  <input type="text" placeholder="Ex: Licence Adobe, Hébergement Cloud..." value={expenseDesc} onChange={(e) => setExpenseDesc(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} required />
-                </div>
+          <section
+            style={{
+              border: '1px solid var(--border)',
+              padding: '25px',
+              borderRadius: '8px',
+              backgroundColor: 'var(--surface)',
+              color: 'var(--foreground)',
+              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.12)',
+            }}
+          >
+            <h2
+              style={{
+                marginTop: 0,
+                fontSize: '18px',
+                color: 'var(--danger)',
+                marginBottom: '20px',
+              }}
+            >
+              📉 Saisir une dépense d'affaires
+            </h2>
 
-                <div style={{ marginBottom: '12px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#718096', marginBottom: '4px' }}>Montant ($ CAD) *</label>
-                  <input type="number" step="0.01" placeholder="0.00" value={expenseAmount} onChange={(e) => setExpenseAmount(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} required />
-                </div>
+            {expenseMessage && (
+              <div
+                style={{
+                  backgroundColor: 'rgba(34, 197, 94, 0.12)',
+                  color: 'var(--success)',
+                  border: '1px solid var(--success)',
+                  padding: '8px',
+                  borderRadius: '4px',
+                  marginBottom: '15px',
+                  fontSize: '12px',
+                }}
+              >
+                {expenseMessage}
+              </div>
+            )}
 
-                <div style={{ marginBottom: '20px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#718096', marginBottom: '4px' }}>Catégorie</label>
-                  <select value={expenseCategory} onChange={(e) => setExpenseCategory(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', backgroundColor: 'white' }}>
-                    <option value="Équipement">💻 Équipement / Matériel</option>
-                    <option value="Logiciels">☁️ Logiciels & Abonnements</option>
-                    <option value="Transport">🚗 Déplacements & Transport</option>
-                    <option value="Bureau">📦 Fournitures de bureau</option>
-                    <option value="Autre">🏷️ Autre dépense</option>
-                  </select>
-                </div>
+            {expenseError && (
+              <div
+                style={{
+                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                  color: 'var(--danger)',
+                  border: '1px solid var(--danger)',
+                  padding: '8px',
+                  borderRadius: '4px',
+                  marginBottom: '15px',
+                  fontSize: '12px',
+                }}
+              >
+                {expenseError}
+              </div>
+            )}
 
-                <button type="submit" style={{ width: '100%', padding: '10px', backgroundColor: '#e53e3e', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-                  Enregistrer la dépense
-                </button>
-              </form>
-            </section>
-          </div>
+            <form onSubmit={handleAddExpense}>
+              <div style={{ marginBottom: '12px' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    color: 'var(--text-muted)',
+                    marginBottom: '4px',
+                  }}
+                >
+                  Description *
+                </label>
 
-          <div style={{ flexGrow: 1 }}>
-            <section style={{ border: '1px solid #cbd5e0', padding: '25px', borderRadius: '8px', backgroundColor: '#fff' }}>
-              <h2 style={{ marginTop: 0, fontSize: '18px', color: '#4a5568', marginBottom: '20px' }}>📜 Historique des charges ({expenses.length})</h2>
-              {expenses.length === 0 ? (
-                <p style={{ color: '#718096', fontStyle: 'italic', fontSize: '13px' }}>Aucune dépense enregistrée.</p>
-              ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                  <thead>
-                    <tr style={{ backgroundColor: '#fff5f5', borderBottom: '2px solid #fed7d7', textAlign: 'left' }}>
-                      <th style={{ padding: '10px' }}>Description</th>
-                      <th style={{ padding: '10px' }}>Catégorie</th>
-                      <th style={{ padding: '10px' }}>Montant</th>
-                      <th style={{ padding: '10px' }}>Date</th>
-                      <th style={{ padding: '10px' }}>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {expenses.map(exp => (
-                      <tr key={exp.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                        <td style={{ padding: '10px' }}><strong>{exp.description}</strong></td>
-                        <td style={{ padding: '10px' }}><span style={{ backgroundColor: '#edf2f7', padding: '2px 6px', borderRadius: '4px', fontSize: '11px' }}>{exp.category}</span></td>
-                        <td style={{ padding: '10px', fontWeight: 'bold', color: '#e53e3e' }}>{Math.abs(Number(exp.amount) || 0).toFixed(2)} $</td>
-                        <td style={{ padding: '10px', color: '#718096' }}>{exp.createdAt ? new Date(exp.createdAt).toLocaleDateString('fr-CA') : new Date().toLocaleDateString('fr-CA')}</td>
-                        <td style={{ padding: '10px' }}>
-                          <button onClick={() => handleDeleteExpense(exp.id)} style={{ padding: '4px 10px', backgroundColor: '#fff5f5', color: '#e53e3e', border: '1px solid #feb2b2', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                            Supprimer
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </section>
-          </div>
+                <input
+                  type="text"
+                  placeholder="Ex: Licence Adobe, Hébergement Cloud..."
+                  value={expenseDesc}
+                  onChange={(e) => setExpenseDesc(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    borderRadius: '4px',
+                    border: '1px solid var(--border)',
+                    backgroundColor: 'var(--surface-soft)',
+                    color: 'var(--foreground)',
+                    boxSizing: 'border-box',
+                  }}
+                  required
+                />
+              </div>
+
+              <div style={{ marginBottom: '12px' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    color: 'var(--text-muted)',
+                    marginBottom: '4px',
+                  }}
+                >
+                  Montant ($ CAD) *
+                </label>
+
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={expenseAmount}
+                  onChange={(e) => setExpenseAmount(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    borderRadius: '4px',
+                    border: '1px solid var(--border)',
+                    backgroundColor: 'var(--surface-soft)',
+                    color: 'var(--foreground)',
+                    boxSizing: 'border-box',
+                  }}
+                  required
+                />
+              </div>
+
+              <div style={{ marginBottom: '20px' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    color: 'var(--text-muted)',
+                    marginBottom: '4px',
+                  }}
+                >
+                  Catégorie
+                </label>
+
+                <select
+                  value={expenseCategory}
+                  onChange={(e) => setExpenseCategory(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    borderRadius: '4px',
+                    border: '1px solid var(--border)',
+                    backgroundColor: 'var(--surface-soft)',
+                    color: 'var(--foreground)',
+                  }}
+                >
+                  <option value="Équipement">
+                    💻 Équipement / Matériel
+                  </option>
+                  <option value="Logiciels">
+                    ☁️ Logiciels & Abonnements
+                  </option>
+                  <option value="Transport">
+                    🚗 Déplacements & Transport
+                  </option>
+                  <option value="Bureau">
+                    📦 Fournitures de bureau
+                  </option>
+                  <option value="Autre">
+                    🏷️ Autre dépense
+                  </option>
+                </select>
+              </div>
+
+              <button
+                type="submit"
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  backgroundColor: 'var(--danger)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                }}
+              >
+                Enregistrer la dépense
+              </button>
+            </form>
+          </section>
         </div>
+
+         <div style={{ flexGrow: 1 }}>
+  <section
+    style={{
+      border: '1px solid var(--border)',
+      padding: '25px',
+      borderRadius: '8px',
+      backgroundColor: 'var(--surface)',
+      color: 'var(--foreground)',
+    }}
+  >
+    <h2
+      style={{
+        marginTop: 0,
+        fontSize: '18px',
+        color: 'var(--foreground)',
+        marginBottom: '20px',
+      }}
+    >
+      📜 Historique des charges ({expenses.length})
+    </h2>
+
+    {expenses.length === 0 ? (
+      <p
+        style={{
+          color: 'var(--text-muted)',
+          fontStyle: 'italic',
+          fontSize: '13px',
+        }}
+      >
+        Aucune dépense enregistrée.
+      </p>
+    ) : (
+      <table
+        style={{
+          width: '100%',
+          borderCollapse: 'collapse',
+          fontSize: '13px',
+          color: 'var(--foreground)',
+        }}
+      >
+        <thead>
+          <tr
+            style={{
+              backgroundColor: 'var(--surface-soft)',
+              borderBottom: '2px solid var(--border)',
+              textAlign: 'left',
+              color: 'var(--foreground)',
+            }}
+          >
+            <th style={{ padding: '10px' }}>Description</th>
+            <th style={{ padding: '10px' }}>Catégorie</th>
+            <th style={{ padding: '10px' }}>Montant</th>
+            <th style={{ padding: '10px' }}>Date</th>
+            <th style={{ padding: '10px' }}>Action</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {expenses.map(exp => (
+            <tr
+              key={exp.id}
+              style={{
+                borderBottom: '1px solid var(--border)',
+              }}
+            >
+              <td style={{ padding: '10px' }}>
+                <strong>{exp.description}</strong>
+              </td>
+
+              <td style={{ padding: '10px' }}>
+                <span
+                  style={{
+                    backgroundColor: 'var(--surface-soft)',
+                    color: 'var(--foreground)',
+                    border: '1px solid var(--border)',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                  }}
+                >
+                  {exp.category}
+                </span>
+              </td>
+
+              <td
+                style={{
+                  padding: '10px',
+                  fontWeight: 'bold',
+                  color: 'var(--danger)',
+                }}
+              >
+                {Math.abs(Number(exp.amount) || 0).toFixed(2)} $
+              </td>
+
+              <td
+                style={{
+                  padding: '10px',
+                  color: 'var(--text-muted)',
+                }}
+              >
+                {exp.createdAt
+                  ? new Date(exp.createdAt).toLocaleDateString('fr-CA')
+                  : new Date().toLocaleDateString('fr-CA')}
+              </td>
+
+              <td style={{ padding: '10px' }}>
+                <button
+                  onClick={() => handleDeleteExpense(exp.id)}
+                  style={{
+                    padding: '4px 10px',
+                    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                    color: 'var(--danger)',
+                    border: '1px solid var(--danger)',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                  }}
+                >
+                  Supprimer
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )}
+  </section>
+</div>
+</div>
      ) : activeTab === 'settings' ? (
   <div
     style={{
@@ -1191,20 +2102,21 @@ const handleChoosePlan = () => {
       width: '100%',
       maxWidth: '760px',
       margin: '0 auto',
-      padding: '10px 0'
+      padding: '10px 0',
+      color: 'var(--foreground)',
     }}
   >
     <div
       style={{
         textAlign: 'center',
-        marginBottom: '35px'
+        marginBottom: '35px',
       }}
     >
       <h2
         style={{
           fontSize: '26px',
-          color: '#2d3748',
-          marginBottom: '8px'
+          color: 'var(--foreground)',
+          marginBottom: '8px',
         }}
       >
         Mon abonnement
@@ -1212,8 +2124,8 @@ const handleChoosePlan = () => {
 
       <p
         style={{
-          color: '#718096',
-          fontSize: '14px'
+          color: 'var(--text-muted)',
+          fontSize: '14px',
         }}
       >
         Consultez votre forfait actuel et gérez votre abonnement.
@@ -1222,15 +2134,21 @@ const handleChoosePlan = () => {
 
     <div
       style={{
-        backgroundColor: '#ffffff',
-        border: '1px solid #e2e8f0',
+        backgroundColor: 'var(--surface)',
+        color: 'var(--foreground)',
+        border: '1px solid var(--border)',
         borderRadius: '14px',
         padding: '32px',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+        boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
       }}
     >
       {loadingSubscription ? (
-        <p style={{ textAlign: 'center', color: '#718096' }}>
+        <p
+          style={{
+            textAlign: 'center',
+            color: 'var(--text-muted)',
+          }}
+        >
           Chargement de votre abonnement...
         </p>
 
@@ -1238,12 +2156,13 @@ const handleChoosePlan = () => {
         <>
           <span
             style={{
-              backgroundColor: '#edf2f7',
-              color: '#4a5568',
+              backgroundColor: 'var(--surface-soft)',
+              color: 'var(--foreground)',
+              border: '1px solid var(--border)',
               padding: '5px 12px',
               borderRadius: '20px',
               fontSize: '12px',
-              fontWeight: 'bold'
+              fontWeight: 'bold',
             }}
           >
             PLAN ACTUEL
@@ -1253,7 +2172,7 @@ const handleChoosePlan = () => {
             style={{
               fontSize: '25px',
               marginTop: '18px',
-              color: '#2d3748'
+              color: 'var(--foreground)',
             }}
           >
             Plan Free
@@ -1263,15 +2182,16 @@ const handleChoosePlan = () => {
             style={{
               fontSize: '34px',
               fontWeight: 'bold',
-              margin: '15px 0'
+              margin: '15px 0',
+              color: 'var(--foreground)',
             }}
           >
             0,00 $
             <span
               style={{
                 fontSize: '14px',
-                color: '#a0aec0',
-                fontWeight: 'normal'
+                color: 'var(--text-muted)',
+                fontWeight: 'normal',
               }}
             >
               {' '}
@@ -1279,14 +2199,15 @@ const handleChoosePlan = () => {
             </span>
           </div>
 
-          <p style={{ color: '#718096' }}>
+          <p style={{ color: 'var(--text-muted)' }}>
             Votre forfait gratuit est actif.
           </p>
 
           <ul
             style={{
               lineHeight: '2',
-              marginTop: '25px'
+              marginTop: '25px',
+              color: 'var(--foreground)',
             }}
           >
             <li>✅ Jusqu'à 3 factures</li>
@@ -1301,12 +2222,12 @@ const handleChoosePlan = () => {
               width: '100%',
               marginTop: '25px',
               padding: '13px',
-              backgroundColor: '#3182ce',
+              backgroundColor: 'var(--primary)',
               color: '#ffffff',
               border: 'none',
               borderRadius: '8px',
               fontWeight: 'bold',
-              cursor: 'pointer'
+              cursor: 'pointer',
             }}
           >
             Voir les options de forfait
@@ -1317,22 +2238,33 @@ const handleChoosePlan = () => {
         <>
           <span
             style={{
-              backgroundColor: cancelAtPeriodEnd ? '#fffaf0' : '#faf5ff',
-              color: cancelAtPeriodEnd ? '#975a16' : '#6b46c1',
+              backgroundColor: cancelAtPeriodEnd
+                ? 'rgba(245, 158, 11, 0.12)'
+                : 'rgba(139, 92, 246, 0.12)',
+              color: cancelAtPeriodEnd
+                ? 'var(--warning)'
+                : '#a78bfa',
+              border: `1px solid ${
+                cancelAtPeriodEnd
+                  ? 'var(--warning)'
+                  : '#8b5cf6'
+              }`,
               padding: '5px 12px',
               borderRadius: '20px',
               fontSize: '12px',
-              fontWeight: 'bold'
+              fontWeight: 'bold',
             }}
           >
-            {cancelAtPeriodEnd ? '⚠️ ANNULATION PROGRAMMÉE' : '🎁 ESSAI EN COURS'}
+            {cancelAtPeriodEnd
+              ? '⚠️ ANNULATION PROGRAMMÉE'
+              : '🎁 ESSAI EN COURS'}
           </span>
 
           <h3
             style={{
               fontSize: '25px',
               marginTop: '18px',
-              color: '#2d3748'
+              color: 'var(--foreground)',
             }}
           >
             ⚡ Essai du Plan Professionnel
@@ -1342,16 +2274,16 @@ const handleChoosePlan = () => {
             style={{
               fontSize: '34px',
               fontWeight: 'bold',
-              color: '#6b46c1',
-              margin: '15px 0'
+              color: '#a78bfa',
+              margin: '15px 0',
             }}
           >
             0,00 $
             <span
               style={{
                 fontSize: '14px',
-                color: '#a0aec0',
-                fontWeight: 'normal'
+                color: 'var(--text-muted)',
+                fontWeight: 'normal',
               }}
             >
               {' '}
@@ -1359,7 +2291,7 @@ const handleChoosePlan = () => {
             </span>
           </div>
 
-          <p style={{ color: '#4a5568' }}>
+          <p style={{ color: 'var(--foreground)' }}>
             Vous profitez actuellement de toutes les fonctionnalités
             du Plan Professionnel.
           </p>
@@ -1369,49 +2301,58 @@ const handleChoosePlan = () => {
               style={{
                 marginTop: '20px',
                 padding: '16px',
-                backgroundColor: '#fffaf0',
-                border: '1px solid #fbd38d',
+                backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                border: '1px solid var(--warning)',
                 borderRadius: '8px',
-                color: '#975a16'
+                color: 'var(--warning)',
               }}
             >
               <strong>⚠️ Annulation programmée</strong>
+
               <div style={{ marginTop: '10px' }}>
                 Votre essai reste actif jusqu'au{' '}
                 <strong>
                   {cancelAt || trialEnd
-                    ? new Date(cancelAt || trialEnd || '').toLocaleDateString('fr-CA', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                      timeZone: 'UTC',
-                    })
+                    ? new Date(
+                        cancelAt || trialEnd || ''
+                      ).toLocaleDateString('fr-CA', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        timeZone: 'UTC',
+                      })
                     : 'terme de la période'}
                 </strong>.
               </div>
+
               <div style={{ marginTop: '8px' }}>
-                Vous ne serez pas facturé <strong>15,00 $ CA</strong> après cette date.
+                Vous ne serez pas facturé{' '}
+                <strong>15,00 $ CA</strong> après cette date.
               </div>
             </div>
+
           ) : trialEnd ? (
             <div
               style={{
                 marginTop: '20px',
                 padding: '16px',
-                backgroundColor: '#faf5ff',
-                border: '1px solid #e9d8fd',
+                backgroundColor: 'rgba(139, 92, 246, 0.12)',
+                border: '1px solid #8b5cf6',
                 borderRadius: '8px',
-                color: '#553c9a'
+                color: '#c4b5fd',
               }}
             >
               <strong>Fin de l'essai :</strong>{' '}
               {new Date(trialEnd).toLocaleDateString('fr-CA', {
                 year: 'numeric',
                 month: 'long',
-                day: 'numeric'
+                day: 'numeric',
+                timeZone: 'UTC',
               })}
+
               <div style={{ marginTop: '8px' }}>
-                Puis <strong>15,00 $ CA / mois</strong> si vous n'annulez pas avant cette date.
+                Puis <strong>15,00 $ CA / mois</strong> si vous
+                n'annulez pas avant cette date.
               </div>
             </div>
           ) : null}
@@ -1422,12 +2363,14 @@ const handleChoosePlan = () => {
               width: '100%',
               marginTop: '25px',
               padding: '13px',
-              backgroundColor: cancelAtPeriodEnd ? '#d69e2e' : '#6b46c1',
+              backgroundColor: cancelAtPeriodEnd
+                ? 'var(--warning)'
+                : '#8b5cf6',
               color: '#ffffff',
               border: 'none',
               borderRadius: '8px',
               fontWeight: 'bold',
-              cursor: 'pointer'
+              cursor: 'pointer',
             }}
           >
             {cancelAtPeriodEnd
@@ -1440,22 +2383,33 @@ const handleChoosePlan = () => {
         <>
           <span
             style={{
-              backgroundColor: cancelAtPeriodEnd ? '#fffaf0' : '#f0fff4',
-              color: cancelAtPeriodEnd ? '#975a16' : '#276749',
+              backgroundColor: cancelAtPeriodEnd
+                ? 'rgba(245, 158, 11, 0.12)'
+                : 'rgba(34, 197, 94, 0.12)',
+              color: cancelAtPeriodEnd
+                ? 'var(--warning)'
+                : 'var(--success)',
+              border: `1px solid ${
+                cancelAtPeriodEnd
+                  ? 'var(--warning)'
+                  : 'var(--success)'
+              }`,
               padding: '5px 12px',
               borderRadius: '20px',
               fontSize: '12px',
-              fontWeight: 'bold'
+              fontWeight: 'bold',
             }}
           >
-            {cancelAtPeriodEnd ? '⚠️ ANNULATION PROGRAMMÉE' : 'ABONNEMENT ACTIF'}
+            {cancelAtPeriodEnd
+              ? '⚠️ ANNULATION PROGRAMMÉE'
+              : 'ABONNEMENT ACTIF'}
           </span>
 
           <h3
             style={{
               fontSize: '25px',
               marginTop: '18px',
-              color: '#2d3748'
+              color: 'var(--foreground)',
             }}
           >
             ⚡ Plan Professionnel
@@ -1465,16 +2419,16 @@ const handleChoosePlan = () => {
             style={{
               fontSize: '34px',
               fontWeight: 'bold',
-              color: '#2b6cb0',
-              margin: '15px 0'
+              color: 'var(--primary)',
+              margin: '15px 0',
             }}
           >
             15,00 $
             <span
               style={{
                 fontSize: '14px',
-                color: '#a0aec0',
-                fontWeight: 'normal'
+                color: 'var(--text-muted)',
+                fontWeight: 'normal',
               }}
             >
               {' '}
@@ -1487,18 +2441,21 @@ const handleChoosePlan = () => {
               style={{
                 marginTop: '20px',
                 padding: '16px',
-                backgroundColor: '#fffaf0',
-                border: '1px solid #fbd38d',
+                backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                border: '1px solid var(--warning)',
                 borderRadius: '8px',
-                color: '#975a16'
+                color: 'var(--warning)',
               }}
             >
               <strong>⚠️ Annulation programmée</strong>
+
               <div style={{ marginTop: '10px' }}>
                 Votre abonnement reste actif jusqu'au{' '}
                 <strong>
                   {cancelAt || currentPeriodEnd
-                    ? new Date(cancelAt || currentPeriodEnd || '').toLocaleDateString('fr-CA', {
+                    ? new Date(
+                        cancelAt || currentPeriodEnd || ''
+                      ).toLocaleDateString('fr-CA', {
                         year: 'numeric',
                         month: 'long',
                         day: 'numeric',
@@ -1507,31 +2464,37 @@ const handleChoosePlan = () => {
                     : 'terme de la période'}
                 </strong>.
               </div>
+
               <div style={{ marginTop: '8px' }}>
-                Aucun nouveau prélèvement ne sera effectué après cette date.
+                Aucun nouveau prélèvement ne sera effectué
+                après cette date.
               </div>
             </div>
           ) : (
             <>
-              <p style={{ color: '#4a5568' }}>
+              <p style={{ color: 'var(--foreground)' }}>
                 Votre abonnement Professionnel est actif.
               </p>
+
               {currentPeriodEnd && (
                 <p
                   style={{
                     marginTop: '15px',
-                    color: '#718096',
-                    fontSize: '14px'
+                    color: 'var(--text-muted)',
+                    fontSize: '14px',
                   }}
                 >
                   Prochaine échéance :{' '}
                   <strong>
-                    {new Date(currentPeriodEnd).toLocaleDateString('fr-CA', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                      timeZone: 'UTC',
-                    })}
+                    {new Date(currentPeriodEnd).toLocaleDateString(
+                      'fr-CA',
+                      {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        timeZone: 'UTC',
+                      }
+                    )}
                   </strong>
                 </p>
               )}
@@ -1544,12 +2507,14 @@ const handleChoosePlan = () => {
               width: '100%',
               marginTop: '25px',
               padding: '13px',
-              backgroundColor: cancelAtPeriodEnd ? '#d69e2e' : '#38a169',
+              backgroundColor: cancelAtPeriodEnd
+                ? 'var(--warning)'
+                : 'var(--success)',
               color: '#ffffff',
               border: 'none',
               borderRadius: '8px',
               fontWeight: 'bold',
-              cursor: 'pointer'
+              cursor: 'pointer',
             }}
           >
             {cancelAtPeriodEnd
@@ -1562,12 +2527,13 @@ const handleChoosePlan = () => {
         <>
           <span
             style={{
-              backgroundColor: '#fff5f5',
-              color: '#c53030',
+              backgroundColor: 'rgba(239, 68, 68, 0.12)',
+              color: 'var(--danger)',
+              border: '1px solid var(--danger)',
               padding: '5px 12px',
               borderRadius: '20px',
               fontSize: '12px',
-              fontWeight: 'bold'
+              fontWeight: 'bold',
             }}
           >
             PAIEMENT À RÉGULARISER
@@ -1577,7 +2543,7 @@ const handleChoosePlan = () => {
             style={{
               fontSize: '25px',
               marginTop: '18px',
-              color: '#2d3748'
+              color: 'var(--foreground)',
             }}
           >
             ⚠️ Plan Professionnel
@@ -1586,7 +2552,7 @@ const handleChoosePlan = () => {
           <p
             style={{
               marginTop: '20px',
-              color: '#c53030'
+              color: 'var(--danger)',
             }}
           >
             Votre dernier paiement n'a pas pu être traité.
@@ -1598,12 +2564,12 @@ const handleChoosePlan = () => {
               width: '100%',
               marginTop: '25px',
               padding: '13px',
-              backgroundColor: '#c53030',
+              backgroundColor: 'var(--danger)',
               color: '#ffffff',
               border: 'none',
               borderRadius: '8px',
               fontWeight: 'bold',
-              cursor: 'pointer'
+              cursor: 'pointer',
             }}
           >
             Régulariser mon abonnement
@@ -1614,12 +2580,13 @@ const handleChoosePlan = () => {
         <>
           <span
             style={{
-              backgroundColor: '#edf2f7',
-              color: '#4a5568',
+              backgroundColor: 'var(--surface-soft)',
+              color: 'var(--foreground)',
+              border: '1px solid var(--border)',
               padding: '5px 12px',
               borderRadius: '20px',
               fontSize: '12px',
-              fontWeight: 'bold'
+              fontWeight: 'bold',
             }}
           >
             ABONNEMENT INACTIF
@@ -1629,7 +2596,7 @@ const handleChoosePlan = () => {
             style={{
               fontSize: '25px',
               marginTop: '18px',
-              color: '#2d3748'
+              color: 'var(--foreground)',
             }}
           >
             Plan Free
@@ -1638,7 +2605,7 @@ const handleChoosePlan = () => {
           <p
             style={{
               marginTop: '15px',
-              color: '#718096'
+              color: 'var(--text-muted)',
             }}
           >
             Aucun abonnement Professionnel actif.
@@ -1650,12 +2617,12 @@ const handleChoosePlan = () => {
               width: '100%',
               marginTop: '25px',
               padding: '13px',
-              backgroundColor: '#3182ce',
+              backgroundColor: 'var(--primary)',
               color: '#ffffff',
               border: 'none',
               borderRadius: '8px',
               fontWeight: 'bold',
-              cursor: 'pointer'
+              cursor: 'pointer',
             }}
           >
             Voir les options de forfait
@@ -1668,10 +2635,10 @@ const handleChoosePlan = () => {
           style={{
             marginTop: '20px',
             padding: '12px',
-            backgroundColor: '#fff5f5',
-            border: '1px solid #fed7d7',
-            color: '#c53030',
-            borderRadius: '8px'
+            backgroundColor: 'rgba(239, 68, 68, 0.12)',
+            border: '1px solid var(--danger)',
+            color: 'var(--danger)',
+            borderRadius: '8px',
           }}
         >
           {subscriptionError}
@@ -1679,132 +2646,705 @@ const handleChoosePlan = () => {
       )}
     </div>
   </div>
-): (
-        /* ONGLET FACTURATION STANDARD ('billing') */
+) : (  /* ONGLET FACTURATION STANDARD ('billing') */
         <div style={{ display: 'flex', flexDirection: 'column', gap: '30px', width: '100%' }}>
           <div style={{ display: 'flex', gap: '40px', alignItems: 'flex-start' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '30px', width: '380px', flexShrink: 0 }}>
-              <section style={{ border: '1px solid #e2e8f0', padding: '20px', borderRadius: '8px', backgroundColor: '#f7fafc' }}>
-                <h2 style={{ marginTop: 0, fontSize: '16px' }}>➕ Ajouter un client</h2>
-                {clientMessage && <div style={{ backgroundColor: '#c6f6d5', color: '#22543d', padding: '6px', borderRadius: '4px', marginBottom: '8px', fontSize: '12px' }}>{clientMessage}</div>}
-                {clientError && <div style={{ backgroundColor: '#fed7d7', color: '#9b2c2c', padding: '6px', borderRadius: '4px', marginBottom: '8px', fontSize: '12px' }}>{clientError}</div>}
+              <section
+                style={{
+                  border: '1px solid var(--border)',
+                  padding: '20px',
+                  borderRadius: '8px',
+                  backgroundColor: 'var(--surface)',
+                  color: 'var(--foreground)',
+                }}
+              >
+                <h2
+                  style={{
+                    marginTop: 0,
+                    fontSize: '16px',
+                    color: 'var(--foreground)',
+                  }}
+                >
+                  ➕ Ajouter un client
+                </h2>
+
+                {clientMessage && (
+                  <div
+                    style={{
+                      backgroundColor: 'rgba(34, 197, 94, 0.12)',
+                      color: 'var(--success)',
+                      border: '1px solid var(--success)',
+                      padding: '6px',
+                      borderRadius: '4px',
+                      marginBottom: '8px',
+                      fontSize: '12px',
+                    }}
+                  >
+                    {clientMessage}
+                  </div>
+                )}
+
+                {clientError && (
+                  <div
+                    style={{
+                      backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                      color: 'var(--danger)',
+                      border: '1px solid var(--danger)',
+                      padding: '6px',
+                      borderRadius: '4px',
+                      marginBottom: '8px',
+                      fontSize: '12px',
+                    }}
+                  >
+                    {clientError}
+                  </div>
+                )}
+
                 <form onSubmit={handleAddClient}>
-                  <input type="text" placeholder="Nom du client *" value={name} onChange={(e) => setName(e.target.value)} style={{ width: '100%', padding: '6px', marginBottom: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} required />
-                  <input type="text" placeholder="Entreprise affiliée" value={companyNameField} onChange={(e) => setCompanyNameField(e.target.value)} style={{ width: '100%', padding: '6px', marginBottom: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} />
-                  <input type="text" placeholder="NEQ" value={neq} onChange={(e) => setNeq(e.target.value)} style={{ width: '100%', padding: '6px', marginBottom: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} />
-                  <input type="text" placeholder="Adresse" value={address} onChange={(e) => setAddress(e.target.value)} style={{ width: '100%', padding: '6px', marginBottom: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} />
-                  <input type="email" placeholder="Courriel" value={email} onChange={(e) => setEmail(e.target.value)} style={{ width: '100%', padding: '6px', marginBottom: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} />
-                  <input type="text" placeholder="Téléphone" value={phone} onChange={(e) => setPhone(e.target.value)} style={{ width: '100%', padding: '6px', marginBottom: '12px', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} />
-                  <button type="submit" style={{ width: '100%', padding: '8px', backgroundColor: '#48bb78', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Ajouter</button>
+                  <input
+                    type="text"
+                    placeholder="Nom du client *"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '6px',
+                      marginBottom: '8px',
+                      borderRadius: '4px',
+                      border: '1px solid var(--border)',
+                      backgroundColor: 'var(--surface-soft)',
+                      color: 'var(--foreground)',
+                      boxSizing: 'border-box',
+                    }}
+                    required
+                  />
+
+                  <input
+                    type="text"
+                    placeholder="Entreprise affiliée"
+                    value={companyNameField}
+                    onChange={(e) => setCompanyNameField(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '6px',
+                      marginBottom: '8px',
+                      borderRadius: '4px',
+                      border: '1px solid var(--border)',
+                      backgroundColor: 'var(--surface-soft)',
+                      color: 'var(--foreground)',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+
+                  <input
+                    type="text"
+                    placeholder="NEQ"
+                    value={neq}
+                    onChange={(e) => setNeq(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '6px',
+                      marginBottom: '8px',
+                      borderRadius: '4px',
+                      border: '1px solid var(--border)',
+                      backgroundColor: 'var(--surface-soft)',
+                      color: 'var(--foreground)',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+
+                  <input
+                    type="text"
+                    placeholder="Adresse"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '6px',
+                      marginBottom: '8px',
+                      borderRadius: '4px',
+                      border: '1px solid var(--border)',
+                      backgroundColor: 'var(--surface-soft)',
+                      color: 'var(--foreground)',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+
+                  <input
+                    type="email"
+                    placeholder="Courriel"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '6px',
+                      marginBottom: '8px',
+                      borderRadius: '4px',
+                      border: '1px solid var(--border)',
+                      backgroundColor: 'var(--surface-soft)',
+                      color: 'var(--foreground)',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+
+                  <input
+                    type="text"
+                    placeholder="Téléphone"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '6px',
+                      marginBottom: '12px',
+                      borderRadius: '4px',
+                      border: '1px solid var(--border)',
+                      backgroundColor: 'var(--surface-soft)',
+                      color: 'var(--foreground)',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+
+                  <button
+                    type="submit"
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      backgroundColor: 'var(--success)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontWeight: 'bold',
+                    }}
+                  >
+                    Ajouter
+                  </button>
                 </form>
               </section>
+              <section
+              id="create-invoice"
+              style={{
+                border: '1px solid var(--border)',
+                padding: '20px',
+                borderRadius: '8px',
+                backgroundColor: 'var(--surface)',
+                color: 'var(--foreground)',
+              }}
+            >
+              <h2
+                style={{
+                  marginTop: 0,
+                  fontSize: '16px',
+                  color: 'var(--primary)',
+                }}
+              >
+                🧾 Créer une facture
+              </h2>
 
-              <section id="create-invoice" style={{ border: '1px solid #e2e8f0', padding: '20px', borderRadius: '8px', backgroundColor: '#ebf8ff' }}>
-                <h2 style={{ marginTop: 0, fontSize: '16px', color: '#2b6cb0' }}>🧾 Créer une facture</h2>
-                {invoiceMessage && <div style={{ backgroundColor: '#c6f6d5', color: '#22543d', padding: '6px', borderRadius: '4px', marginBottom: '8px', fontSize: '12px' }}>{invoiceMessage}</div>}
-                {invoiceError && <div style={{ backgroundColor: '#fed7d7', color: '#9b2c2c', padding: '6px', borderRadius: '4px', marginBottom: '8px', fontSize: '12px' }}>{invoiceError}</div>}
-                <form onSubmit={handleCreateInvoice}>
-                  <select value={selectedClientId} onChange={(e) => setSelectedClientId(e.target.value)} style={{ width: '100%', padding: '6px', marginBottom: '15px', borderRadius: '4px', border: '1px solid #cbd5e0', backgroundColor: 'white' }} required>
-                    <option value="">-- Sélectionner le client --</option>
-                    {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
+              {invoiceMessage && (
+                <div
+                  style={{
+                    backgroundColor: 'rgba(34, 197, 94, 0.12)',
+                    color: 'var(--success)',
+                    padding: '6px',
+                    borderRadius: '4px',
+                    marginBottom: '8px',
+                    fontSize: '12px',
+                    border: '1px solid var(--success)',
+                  }}
+                >
+                  {invoiceMessage}
+                </div>
+              )}
 
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#2b6cb0', marginBottom: '6px' }}>Services et montants :</label>
-                  
-                  {invoiceItems.map((item, index) => (
-                    <div key={index} style={{ display: 'flex', gap: '6px', marginBottom: '8px', alignItems: 'center' }}>
-                      <input type="text" placeholder="Description du service" value={item.description} onChange={(e) => handleInvoiceItemChange(index, 'description', e.target.value)} style={{ flexGrow: 1, padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e0', fontSize: '13px' }} required />
-                      <input type="number" step="0.01" placeholder="Prix ($)" value={item.amount} onChange={(e) => handleInvoiceItemChange(index, 'amount', e.target.value)} style={{ width: '85px', padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e0', fontSize: '13px' }} required />
-                      {invoiceItems.length > 1 && (
-                        <button type="button" onClick={() => handleRemoveInvoiceItem(index)} style={{ padding: '6px 10px', backgroundColor: '#e53e3e', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>✕</button>
-                      )}
-                    </div>
+              {invoiceError && (
+                <div
+                  style={{
+                    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                    color: 'var(--danger)',
+                    padding: '6px',
+                    borderRadius: '4px',
+                    marginBottom: '8px',
+                    fontSize: '12px',
+                    border: '1px solid var(--danger)',
+                  }}
+                >
+                  {invoiceError}
+                </div>
+              )}
+
+              <form onSubmit={handleCreateInvoice}>
+                <select
+                  value={selectedClientId}
+                  onChange={(e) => setSelectedClientId(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '6px',
+                    marginBottom: '15px',
+                    borderRadius: '4px',
+                    border: '1px solid var(--border)',
+                    backgroundColor: 'var(--surface-soft)',
+                    color: 'var(--foreground)',
+                  }}
+                  required
+                >
+                  <option value="">-- Sélectionner le client --</option>
+
+                  {clients.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
                   ))}
+                </select>
 
-                  <button type="button" onClick={handleAddInvoiceItem} style={{ width: '100%', padding: '6px', backgroundColor: '#4a5568', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', marginBottom: '15px', marginTop: '5px' }}>
-                    ➕ Ajouter une ligne de service
-                  </button>
-                  
-                  {liveSubtotalNum > 0 && (
-                    <div style={{ backgroundColor: '#fff', padding: '10px', borderRadius: '6px', marginBottom: '12px', fontSize: '12px', border: '1px dashed #bee3f8' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Sous-total brut :</span><span>{liveSubtotalNum.toFixed(2)} $</span></div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>TPS (5%) :</span><span>{liveTPS.toFixed(2)} $</span></div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #edf2f7', paddingBottom: '4px' }}><span>TVQ (9.975%) :</span><span>{liveTVQ.toFixed(2)} $</span></div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', color: '#2b6cb0', paddingTop: '4px' }}><span>Total TTC :</span><span>{liveTotal.toFixed(2)} $</span></div>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    color: 'var(--primary)',
+                    marginBottom: '6px',
+                  }}
+                >
+                  Services et montants :
+                </label>
+
+                {invoiceItems.map((item, index) => (
+                  <div
+                    key={index}
+                    style={{
+                      display: 'flex',
+                      gap: '6px',
+                      marginBottom: '8px',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <input
+                      type="text"
+                      placeholder="Description du service"
+                      value={item.description}
+                      onChange={(e) =>
+                        handleInvoiceItemChange(
+                          index,
+                          'description',
+                          e.target.value
+                        )
+                      }
+                      style={{
+                        flexGrow: 1,
+                        padding: '6px',
+                        borderRadius: '4px',
+                        border: '1px solid var(--border)',
+                        backgroundColor: 'var(--surface-soft)',
+                        color: 'var(--foreground)',
+                        fontSize: '13px',
+                      }}
+                      required
+                    />
+
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="Prix ($)"
+                      value={item.amount}
+                      onChange={(e) =>
+                        handleInvoiceItemChange(
+                          index,
+                          'amount',
+                          e.target.value
+                        )
+                      }
+                      style={{
+                        width: '85px',
+                        padding: '6px',
+                        borderRadius: '4px',
+                        border: '1px solid var(--border)',
+                        backgroundColor: 'var(--surface-soft)',
+                        color: 'var(--foreground)',
+                        fontSize: '13px',
+                      }}
+                      required
+                    />
+
+                    {invoiceItems.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleRemoveInvoiceItem(index)
+                        }
+                        style={{
+                          padding: '6px 10px',
+                          backgroundColor: 'var(--danger)',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontWeight: 'bold',
+                          fontSize: '12px',
+                        }}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={handleAddInvoiceItem}
+                  style={{
+                    width: '100%',
+                    padding: '6px',
+                    backgroundColor: 'var(--surface-soft)',
+                    color: 'var(--foreground)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    marginBottom: '15px',
+                    marginTop: '5px',
+                  }}
+                >
+                  ➕ Ajouter une ligne de service
+                </button>
+
+                {liveSubtotalNum > 0 && (
+                  <div
+                    style={{
+                      backgroundColor: 'var(--surface-soft)',
+                      color: 'var(--foreground)',
+                      padding: '10px',
+                      borderRadius: '6px',
+                      marginBottom: '12px',
+                      fontSize: '12px',
+                      border: '1px dashed var(--border)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <span>Sous-total brut :</span>
+                      <span>{liveSubtotalNum.toFixed(2)} $</span>
                     </div>
-                  )}
 
-                  <button type="submit" disabled={!selectedClientId || loadingInvoice} style={{ width: '100%', padding: '8px', backgroundColor: '#3182ce', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-                    {loadingInvoice ? 'Génération...' : 'Générer la facture'}
-                  </button>
-                </form>
-              </section>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <span>TPS (5%) :</span>
+                      <span>{liveTPS.toFixed(2)} $</span>
+                    </div>
+
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        borderBottom: '1px solid var(--border)',
+                        paddingBottom: '4px',
+                      }}
+                    >
+                      <span>TVQ (9.975%) :</span>
+                      <span>{liveTVQ.toFixed(2)} $</span>
+                    </div>
+
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        fontWeight: 'bold',
+                        color: 'var(--primary)',
+                        paddingTop: '4px',
+                      }}
+                    >
+                      <span>Total TTC :</span>
+                      <span>{liveTotal.toFixed(2)} $</span>
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={!selectedClientId || loadingInvoice}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    backgroundColor:
+                      !selectedClientId || loadingInvoice
+                        ? 'var(--surface-soft)'
+                        : 'var(--primary)',
+                    color:
+                      !selectedClientId || loadingInvoice
+                        ? 'var(--text-muted)'
+                        : 'white',
+                    border: '1px solid var(--border)',
+                    borderRadius: '4px',
+                    cursor:
+                      !selectedClientId || loadingInvoice
+                        ? 'not-allowed'
+                        : 'pointer',
+                    fontWeight: 'bold',
+                  }}
+                >
+                  {loadingInvoice
+                    ? 'Génération...'
+                    : 'Générer la facture'}
+                </button>
+              </form>
+            </section>
             </div>
 
             <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '40px' }}>
-              <section>
-                <h2 style={{ marginTop: 0, fontSize: '18px' }}>👥 Vos Clients ({clients.length})</h2>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <section
+              style={{
+                backgroundColor: 'var(--surface)',
+                color: 'var(--foreground)',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                padding: '16px',
+                transition: 'background-color 0.25s ease, color 0.25s ease',
+              }}
+            >
+              <h2
+                style={{
+                  marginTop: 0,
+                  fontSize: '18px',
+                  color: 'var(--foreground)',
+                }}
+              >
+                👥 Vos Clients ({clients.length})
+              </h2>
+
+              <table
+                style={{
+                  width: '100%',
+                  borderCollapse: 'collapse',
+                  fontSize: '13px',
+                  color: 'var(--foreground)',
+                }}
+              >
+                <thead>
+                  <tr
+                    style={{
+                      backgroundColor: 'var(--surface-soft)',
+                      borderBottom: '2px solid var(--border)',
+                      textAlign: 'left',
+                      color: 'var(--foreground)',
+                    }}
+                  >
+                    <th style={{ padding: '8px' }}>Nom</th>
+                    <th style={{ padding: '8px' }}>NEQ</th>
+                    <th style={{ padding: '8px' }}>Contact</th>
+                    <th style={{ padding: '8px' }}>Actions</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {clients.map(c => (
+                    <tr
+                      key={c.id}
+                      style={{
+                        borderBottom: '1px solid var(--border)',
+                      }}
+                    >
+                      <td style={{ padding: '8px' }}>
+                        <strong>{c.name}</strong>
+                        {c.companyName && ` (${c.companyName})`}
+                      </td>
+
+                      <td style={{ padding: '8px' }}>
+                        {c.neq || '—'}
+                      </td>
+
+                      <td style={{ padding: '8px' }}>
+                        {c.email || c.phone || '—'}
+                      </td>
+
+                      <td style={{ padding: '8px' }}>
+                        <button
+                          onClick={() => handleDeleteClient(c.id)}
+                          style={{
+                            padding: '3px 8px',
+                            backgroundColor: 'var(--danger)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '11px',
+                          }}
+                        >
+                          Supprimer
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+
+             <section
+              style={{
+                backgroundColor: 'var(--surface)',
+                color: 'var(--foreground)',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                padding: '16px',
+                transition: 'background-color 0.25s ease, color 0.25s ease',
+              }}
+            >
+              <h2
+                style={{
+                  marginTop: 0,
+                  fontSize: '18px',
+                  color: 'var(--primary)',
+                }}
+              >
+                🧾 Factures Émises ({invoices.length})
+              </h2>
+
+              {invoices.length === 0 ? (
+                <p
+                  style={{
+                    color: 'var(--text-muted)',
+                    fontStyle: 'italic',
+                    fontSize: '13px',
+                  }}
+                >
+                  Aucune facture générée pour l'instant.
+                </p>
+              ) : (
+                <table
+                  style={{
+                    width: '100%',
+                    borderCollapse: 'collapse',
+                    fontSize: '13px',
+                    color: 'var(--foreground)',
+                  }}
+                >
                   <thead>
-                    <tr style={{ backgroundColor: '#edf2f7', borderBottom: '2px solid #cbd5e0', textAlign: 'left' }}>
-                      <th style={{ padding: '8px' }}>Nom</th>
-                      <th style={{ padding: '8px' }}>NEQ</th>
-                      <th style={{ padding: '8px' }}>Contact</th>
-                      <th style={{ padding: '8px' }}>Actions</th>
+                    <tr
+                      style={{
+                        backgroundColor: 'var(--surface-soft)',
+                        borderBottom: '2px solid var(--border)',
+                        textAlign: 'left',
+                        color: 'var(--foreground)',
+                      }}
+                    >
+                      <th style={{ padding: '8px' }}>Numéro</th>
+                      <th style={{ padding: '8px' }}>Client</th>
+                      <th style={{ padding: '8px' }}>Sous-total</th>
+                      <th style={{ padding: '8px' }}>Total TTC</th>
+                      <th style={{ padding: '8px' }}>Actions / Statut</th>
                     </tr>
                   </thead>
+
                   <tbody>
-                    {clients.map(c => (
-                      <tr key={c.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                        <td style={{ padding: '8px' }}><strong>{c.name}</strong> {c.companyName && `(${c.companyName})`}</td>
-                        <td style={{ padding: '8px' }}>{c.neq || '—'}</td>
-                        <td style={{ padding: '8px' }}>{c.email || c.phone || '—'}</td>
-                        <td style={{ padding: '8px' }}><button onClick={() => handleDeleteClient(c.id)} style={{ padding: '3px 8px', backgroundColor: '#e53e3e', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>Supprimer</button></td>
+                    {invoices.map(i => (
+                      <tr
+                        key={i.id}
+                        style={{
+                          borderBottom: '1px solid var(--border)',
+                        }}
+                      >
+                        <td style={{ padding: '8px' }}>
+                          <strong>{i.invoiceNumber}</strong>
+                        </td>
+
+                        <td style={{ padding: '8px' }}>
+                          {i.clientName}
+                        </td>
+
+                        <td style={{ padding: '8px' }}>
+                          {Number(i.amountSubtotal).toFixed(2)} $
+                        </td>
+
+                        <td
+                          style={{
+                            padding: '8px',
+                            fontWeight: 'bold',
+                            color: 'var(--primary)',
+                          }}
+                        >
+                          {Number(i.amountTotal).toFixed(2)} $
+                        </td>
+
+                        <td
+                          style={{
+                            padding: '8px',
+                            display: 'flex',
+                            gap: '8px',
+                            flexWrap: 'wrap',
+                          }}
+                        >
+                          <button
+                            onClick={() =>
+                              handleToggleStatus(i.id, i.status)
+                            }
+                            style={{
+                              padding: '4px 8px',
+                              backgroundColor:
+                                i.status === 'PAID'
+                                  ? 'var(--success)'
+                                  : 'var(--warning)',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '11px',
+                              fontWeight: 'bold',
+                            }}
+                          >
+                            {i.status === 'PAID'
+                              ? '✅ Payée'
+                              : '⏳ En attente'}
+                          </button>
+
+                          <button
+                            onClick={() => handlePrintInvoice(i)}
+                            style={{
+                              padding: '4px 8px',
+                              backgroundColor: 'var(--primary)',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '11px',
+                              fontWeight: 'bold',
+                            }}
+                          >
+                            🖨️ Imprimer / PDF
+                          </button>
+
+                          <button
+                            onClick={() =>
+                              handleDeleteInvoice(i.id)
+                            }
+                            style={{
+                              padding: '4px 8px',
+                              backgroundColor: 'var(--danger)',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '11px',
+                              fontWeight: 'bold',
+                            }}
+                          >
+                            🗑️ Supprimer
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </section>
-
-              <section>
-                <h2 style={{ marginTop: 0, fontSize: '18px', color: '#2b6cb0' }}>🧾 Factures Émises ({invoices.length})</h2>
-                {invoices.length === 0 ? (
-                  <p style={{ color: '#718096', fontStyle: 'italic', fontSize: '13px' }}>Aucune facture générée pour l'instant.</p>
-                ) : (
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                    <thead>
-                      <tr style={{ backgroundColor: '#ebf8ff', borderBottom: '2px solid #bee3f8', textAlign: 'left' }}>
-                        <th style={{ padding: '8px' }}>Numéro</th>
-                        <th style={{ padding: '8px' }}>Client</th>
-                        <th style={{ padding: '8px' }}>Sous-total</th>
-                        <th style={{ padding: '8px' }}>Total TTC</th>
-                        <th style={{ padding: '8px' }}>Actions / Statut</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {invoices.map(i => (
-                        <tr key={i.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                          <td style={{ padding: '8px' }}><strong>{i.invoiceNumber}</strong></td>
-                          <td style={{ padding: '8px' }}>{i.clientName}</td>
-                          <td style={{ padding: '8px' }}>{Number(i.amountSubtotal).toFixed(2)} $</td>
-                          <td style={{ padding: '8px', fontWeight: 'bold', color: '#2b6cb0' }}>{Number(i.amountTotal).toFixed(2)} $</td>
-                          <td style={{ padding: '8px', display: 'flex', gap: '8px' }}>
-                            <button onClick={() => handleToggleStatus(i.id, i.status)} style={{ padding: '4px 8px', backgroundColor: i.status === 'PAID' ? '#48bb78' : '#ecc94b', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                              {i.status === 'PAID' ? '✅ Payée' : '⏳ En attente'}
-                            </button>
-                            <button onClick={() => handlePrintInvoice(i)} style={{ padding: '4px 8px', backgroundColor: '#3182ce', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                              🖨️ Imprimer / PDF
-                            </button>
-                            <button onClick={() => handleDeleteInvoice(i.id)} style={{ padding: '4px 8px', backgroundColor: '#e53e3e', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                              🗑️ Supprimer
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </section>
+              )}
+            </section>
             </div>
           </div>
         </div>

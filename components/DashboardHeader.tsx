@@ -1,18 +1,40 @@
 "use client";
 
-export default function DashboardHeader({ userName = "Entrepreneur" }: { userName?: string }) {
+import ThemeToggle from "./ThemeToggle";
+
+export default function DashboardHeader({
+  userName = "Entrepreneur",
+}: {
+  userName?: string;
+}) {
   return (
-    <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 pb-6 border-b border-slate-200">
+    <header
+      className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 pb-6"
+      style={{
+        borderBottom: "1px solid var(--border)",
+      }}
+    >
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">
+        <h1
+          className="text-2xl font-bold"
+          style={{ color: "var(--foreground)" }}
+        >
           Bonjour, {userName} 👋
         </h1>
-        <p className="text-sm text-slate-500 mt-1">
+
+        <p
+          className="text-sm mt-1"
+          style={{ color: "var(--text-muted)" }}
+        >
           Voici le résumé de vos factures, dépenses et taxes pour ce mois-ci.
         </p>
       </div>
 
       <div className="flex items-center gap-3">
+
+        {/* Thème clair / sombre */}
+        <ThemeToggle />
+
         {/* Statut du compte / Loi 25 */}
         <span className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -27,6 +49,7 @@ export default function DashboardHeader({ userName = "Entrepreneur" }: { userNam
           <span>➕</span>
           <span>Créer une facture</span>
         </a>
+
       </div>
     </header>
   );

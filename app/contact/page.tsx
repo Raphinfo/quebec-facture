@@ -10,163 +10,413 @@ export default function ContactPage() {
     subject: "support",
     message: "",
   });
-  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+
+  const [status, setStatus] = useState<
+    "idle" | "loading" | "success" | "error"
+  >("idle");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatus("loading");
 
-    // Simulation d'envoi / Intégration API
     try {
-      // Tu pourras relier cette partie à une route API si tu souhaites recevoir les messages par courriel
       await new Promise((resolve) => setTimeout(resolve, 1000));
+
       setStatus("success");
-      setFormData({ name: "", email: "", subject: "support", message: "" });
+
+      setFormData({
+        name: "",
+        email: "",
+        subject: "support",
+        message: "",
+      });
     } catch (error) {
       setStatus("error");
     }
   };
 
+  const fieldStyle: React.CSSProperties = {
+    width: "100%",
+    padding: "10px 14px",
+    border: "1px solid var(--border)",
+    borderRadius: "8px",
+    backgroundColor: "var(--surface-soft)",
+    color: "var(--foreground)",
+    outline: "none",
+    boxSizing: "border-box",
+  };
+
+  const labelStyle: React.CSSProperties = {
+    display: "block",
+    fontSize: "14px",
+    fontWeight: 600,
+    color: "var(--foreground)",
+    marginBottom: "6px",
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto">
-        
+    <div
+      style={{
+        minHeight: "100vh",
+        backgroundColor: "var(--background)",
+        color: "var(--foreground)",
+        padding: "48px 24px",
+        transition:
+          "background-color 0.25s ease, color 0.25s ease",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: "900px",
+          margin: "0 auto",
+        }}
+      >
         {/* En-tête */}
-        <div className="text-center mb-12">
-          <h1 className="text-3xl font-extrabold text-slate-900 sm:text-4xl">
+        <div
+          style={{
+            textAlign: "center",
+            marginBottom: "48px",
+          }}
+        >
+          <h1
+            style={{
+              marginTop: 0,
+              marginBottom: "12px",
+              fontSize: "36px",
+              fontWeight: 800,
+              color: "var(--foreground)",
+            }}
+          >
             Contactez l'équipe Québec Facture 📬
           </h1>
-          <p className="mt-3 text-lg text-slate-600">
-            Une question sur votre abonnement, une suggestion ou un besoin d'assistance ? Nous sommes là pour vous aider.
+
+          <p
+            style={{
+              margin: 0,
+              fontSize: "18px",
+              color: "var(--text-muted)",
+              lineHeight: 1.5,
+            }}
+          >
+            Une question sur votre abonnement, une suggestion ou un besoin
+            d'assistance ? Nous sommes là pour vous aider.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns:
+              "minmax(240px, 1fr) minmax(0, 2fr)",
+            gap: "32px",
+            alignItems: "stretch",
+          }}
+        >
           {/* Bloc Coordonnées & Support */}
-          <div className="md:col-span-1 bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
+          <div
+            style={{
+              backgroundColor: "var(--surface)",
+              border: "1px solid var(--border)",
+              borderRadius: "12px",
+              padding: "24px",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+              color: "var(--foreground)",
+            }}
+          >
             <div>
-              <h2 className="text-xl font-bold text-slate-900 mb-4">Informations</h2>
-              
-              <div className="space-y-4 text-sm text-slate-600">
+              <h2
+                style={{
+                  marginTop: 0,
+                  marginBottom: "16px",
+                  fontSize: "20px",
+                  fontWeight: 700,
+                  color: "var(--foreground)",
+                }}
+              >
+                Informations
+              </h2>
+
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "16px",
+                  fontSize: "14px",
+                  color: "var(--text-muted)",
+                }}
+              >
                 <div>
-                  <strong className="block text-slate-900">📍 Localisation :</strong>
+                  <strong
+                    style={{
+                      display: "block",
+                      color: "var(--foreground)",
+                    }}
+                  >
+                    📍 Localisation :
+                  </strong>
+
                   <span>Matane, Québec, Canada</span>
                 </div>
 
                 <div>
-                  <strong className="block text-slate-900">✉️ Courriel du support :</strong>
-                  <a href="mailto:support@quebecfacture.com" className="text-blue-600 hover:underline">
+                  <strong
+                    style={{
+                      display: "block",
+                      color: "var(--foreground)",
+                    }}
+                  >
+                    ✉️ Courriel du support :
+                  </strong>
+
+                  <a
+                    href="mailto:support@quebecfacture.com"
+                    style={{
+                      color: "var(--primary)",
+                      textDecoration: "none",
+                    }}
+                  >
                     support@quebecfacture.com
                   </a>
                 </div>
 
                 <div>
-                  <strong className="block text-slate-900">⏱️ Heures d'ouverture :</strong>
-                  <span>Lundi - Vendredi : 9h00 à 17h00 (EST)</span>
+                  <strong
+                    style={{
+                      display: "block",
+                      color: "var(--foreground)",
+                    }}
+                  >
+                    ⏱️ Heures d'ouverture :
+                  </strong>
+
+                  <span>
+                    Lundi - Vendredi : 9h00 à 17h00 (EST)
+                  </span>
                 </div>
               </div>
             </div>
 
             {/* Note Conformité Loi 25 */}
-            <div className="mt-8 pt-4 border-t border-slate-100 text-xs text-slate-500">
-              <strong className="text-slate-700 block mb-1">🔒 Confidentialité (Loi 25) :</strong>
-              Vos données transmises via ce formulaire sont strictement utilisées pour répondre à votre demande.
+            <div
+              style={{
+                marginTop: "32px",
+                paddingTop: "16px",
+                borderTop: "1px solid var(--border)",
+                fontSize: "12px",
+                color: "var(--text-muted)",
+                lineHeight: 1.5,
+              }}
+            >
+              <strong
+                style={{
+                  display: "block",
+                  marginBottom: "4px",
+                  color: "var(--foreground)",
+                }}
+              >
+                🔒 Confidentialité (Loi 25) :
+              </strong>
+
+              Vos données transmises via ce formulaire sont strictement
+              utilisées pour répondre à votre demande.
             </div>
           </div>
 
           {/* Formulaire de Contact */}
-          <div className="md:col-span-2 bg-white p-8 rounded-xl shadow-sm border border-slate-200">
+          <div
+            style={{
+              backgroundColor: "var(--surface)",
+              border: "1px solid var(--border)",
+              borderRadius: "12px",
+              padding: "32px",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+              color: "var(--foreground)",
+            }}
+          >
             {status === "success" && (
-              <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-sm">
-                ✅ Merci ! Votre message a bien été envoyé. Notre équipe vous répondra dans les plus brefs délais.
+              <div
+                style={{
+                  marginBottom: "24px",
+                  padding: "16px",
+                  backgroundColor: "rgba(34, 197, 94, 0.12)",
+                  border: "1px solid var(--success)",
+                  color: "var(--success)",
+                  borderRadius: "8px",
+                  fontSize: "14px",
+                }}
+              >
+                ✅ Merci ! Votre message a bien été envoyé. Notre équipe
+                vous répondra dans les plus brefs délais.
               </div>
             )}
 
             {status === "error" && (
-              <div className="mb-6 p-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg text-sm">
-                ❌ Une erreur est survenue lors de l'envoi. Veuillez réessayer ou envoyer un courriel direct.
+              <div
+                style={{
+                  marginBottom: "24px",
+                  padding: "16px",
+                  backgroundColor: "rgba(239, 68, 68, 0.12)",
+                  border: "1px solid var(--danger)",
+                  color: "var(--danger)",
+                  borderRadius: "8px",
+                  fontSize: "14px",
+                }}
+              >
+                ❌ Une erreur est survenue lors de l'envoi. Veuillez
+                réessayer ou envoyer un courriel direct.
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form
+              onSubmit={handleSubmit}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "20px",
+              }}
+            >
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">
+                <label style={labelStyle}>
                   Nom complet *
                 </label>
+
                 <input
                   type="text"
                   required
                   placeholder="Ex: Jean Tremblay"
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      name: e.target.value,
+                    })
+                  }
+                  style={fieldStyle}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">
+                <label style={labelStyle}>
                   Adresse courriel *
                 </label>
+
                 <input
                   type="email"
                   required
                   placeholder="nom@entreprise.ca"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      email: e.target.value,
+                    })
+                  }
+                  style={fieldStyle}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">
+                <label style={labelStyle}>
                   Sujet *
                 </label>
+
                 <select
                   value={formData.subject}
-                  onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white transition"
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      subject: e.target.value,
+                    })
+                  }
+                  style={fieldStyle}
                 >
-                  <option value="support">Support technique</option>
-                  <option value="billing">Facturation & Abonnement</option>
-                  <option value="feedback">Suggestion / Amélioration</option>
-                  <option value="other">Autre demande</option>
+                  <option value="support">
+                    Support technique
+                  </option>
+                  <option value="billing">
+                    Facturation & Abonnement
+                  </option>
+                  <option value="feedback">
+                    Suggestion / Amélioration
+                  </option>
+                  <option value="other">
+                    Autre demande
+                  </option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">
+                <label style={labelStyle}>
                   Message *
                 </label>
+
                 <textarea
                   required
                   rows={5}
                   placeholder="Décrivez clairement votre demande..."
                   value={formData.message}
-                  onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                ></textarea>
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      message: e.target.value,
+                    })
+                  }
+                  style={{
+                    ...fieldStyle,
+                    resize: "vertical",
+                  }}
+                />
               </div>
 
               <button
                 type="submit"
                 disabled={status === "loading"}
-                className="w-full py-3 px-6 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-sm hover:shadow transition duration-200 disabled:opacity-50"
+                style={{
+                  width: "100%",
+                  padding: "12px 24px",
+                  backgroundColor: "var(--primary)",
+                  color: "#ffffff",
+                  border: "none",
+                  borderRadius: "8px",
+                  fontWeight: 600,
+                  cursor:
+                    status === "loading"
+                      ? "not-allowed"
+                      : "pointer",
+                  opacity:
+                    status === "loading" ? 0.5 : 1,
+                }}
               >
-                {status === "loading" ? "Envoi en cours..." : "Envoyer le message"}
+                {status === "loading"
+                  ? "Envoi en cours..."
+                  : "Envoyer le message"}
               </button>
             </form>
           </div>
-
         </div>
 
-        {/* Pied de page de retour */}
-        <div className="mt-10 text-center text-sm text-slate-500">
-          <Link href="/dashboard" className="text-blue-600 hover:underline">
+        {/* Retour */}
+        <div
+          style={{
+            marginTop: "40px",
+            textAlign: "center",
+            fontSize: "14px",
+          }}
+        >
+          <Link
+            href="/dashboard"
+            style={{
+              color: "var(--primary)",
+              textDecoration: "none",
+              fontWeight: 500,
+            }}
+          >
             ← Retour au Tableau de Bord
           </Link>
         </div>
-
       </div>
     </div>
   );

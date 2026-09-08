@@ -15,7 +15,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Québec Facture - Facturation & TPS/TVQ",
-  description: "Solution de facturation simple, rapide et conforme pour les entrepreneurs et travailleurs autonomes du Québec.",
+  description:
+    "Solution de facturation simple, rapide et conforme pour les entrepreneurs et travailleurs autonomes du Québec.",
 };
 
 export default function RootLayout({
@@ -25,7 +26,37 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr" className="h-full">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col justify-between`}>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function () {
+                try {
+                  var theme = localStorage.getItem('theme') || 'system';
+
+                  var resolvedTheme =
+                    theme === 'system'
+                      ? (
+                          window.matchMedia('(prefers-color-scheme: dark)').matches
+                            ? 'dark'
+                            : 'light'
+                        )
+                      : theme;
+
+                  document.documentElement.setAttribute(
+                    'data-theme',
+                    resolvedTheme
+                  );
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
+      </head>
+
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col justify-between`}
+      >
         <main className="flex-grow">{children}</main>
         <Footer />
       </body>
