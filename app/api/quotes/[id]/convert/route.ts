@@ -66,6 +66,16 @@ export async function POST(
       );
     }
 
+    if (quote.status !== "ACCEPTED") {
+  return NextResponse.json(
+    {
+      error:
+        "La soumission doit être acceptée avant d'être convertie en facture.",
+    },
+    { status: 409 }
+  );
+}
+
     // Vérification du plan et de la limite de factures
     const userResult = await sql`
       SELECT plan

@@ -157,20 +157,28 @@ export async function POST(req: NextRequest) {
       (amountSubtotal + tpsAmount + tvqAmount).toFixed(2)
     );
 
-    const countRows = await sql`
-      SELECT COUNT(*)::int AS count
+    const currentYear = new Date().getFullYear();
+    const quotePrefix = `SOU-${currentYear}-`;
+
+    const numberRows = await sql`
+      SELECT COALESCE(
+        MAX(
+          CAST(
+            SUBSTRING("quoteNumber" FROM '[0-9]+$')
+            AS INTEGER
+          )
+        ),
+        0
+      ) AS "maxNumber"
       FROM "Quote"
       WHERE "userId" = ${userId}
+        AND "quoteNumber" LIKE ${quotePrefix + "%"}
     `;
 
-    const nextNumber = Number(countRows[0]?.count ?? 0) + 1;
+    const nextNumber = Number(numberRows[0]?.maxNumber ?? 0) + 1;
 
     const quoteNumber =
-      "SOU-" +
-      new Date().getFullYear() +
-      "-" +
-      String(nextNumber).padStart(4, "0");
-
+      quotePrefix + String(nextNumber).padStart(4, "0");
     const quoteId = crypto.randomUUID();
 
     const result = await sql`

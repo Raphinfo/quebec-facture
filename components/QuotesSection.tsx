@@ -1080,6 +1080,7 @@ export default function QuotesSection() {
                               : "Supprimer"}
                           </button>
 
+                         {quote.status === "ACCEPTED" ? (
                           <button
                             type="button"
                             onClick={() => convertQuoteToInvoice(quote.id)}
@@ -1097,7 +1098,9 @@ export default function QuotesSection() {
                               fontSize: "12px",
                               fontWeight: 700,
                               opacity:
-                                convertingId === quote.id || loading ? 0.65 : 1,
+                                convertingId === quote.id || loading
+                                  ? 0.65
+                                  : 1,
                               whiteSpace: "nowrap",
                             }}
                           >
@@ -1105,6 +1108,18 @@ export default function QuotesSection() {
                               ? "Conversion..."
                               : "Convertir en facture"}
                           </button>
+                        ) : (
+                          <span
+                            style={{
+                              color: "var(--text-muted)",
+                              fontSize: "12px",
+                              fontWeight: 600,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            Acceptation requise
+                          </span> 
+                        )}
                         </div>
                       )}
                     </Td>
