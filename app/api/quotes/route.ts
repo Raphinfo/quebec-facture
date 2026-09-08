@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { neon } from "@neondatabase/serverless";
+import { cookies } from "next/headers";
+import { getDb } from "@/lib/db";
 
 const sql = neon(process.env.DATABASE_URL!);
 
@@ -221,6 +223,51 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(
       { error: message },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE() {
+  try {
+    const cookieStore = await cookies();
+    const userId = cookieStore.get("user_session")?.value;
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Non autorisé." },
+        { status: 401 }
+      );
+    }
+
+    const sql = getDb();
+
+    const deleted = await sql`
+      DELETE FROM "Quote"
+      WHERE "userId" = ${userId}
+        AND "status" = 'DRAFT'
+      RETURNING "id"
+    `;
+
+    return NextResponse.json(
+      {
+        message: `${deleted.length} brouillon(s) supprimé(s).`,
+        deletedCount: deleted.length,
+      },
+      { status: 200 }
+    );
+  } catch (error: any) {
+    console.error(
+      "❌ ERREUR SUPPRESSION BROUILLONS :",
+      error.message
+    );
+
+    return NextResponse.json(
+      {
+        error:
+          error.message ||
+          "Erreur lors de la suppression des brouillons.",
+      },
       { status: 500 }
     );
   }

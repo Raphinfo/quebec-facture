@@ -31,10 +31,24 @@ type Quote = {
   items: QuoteItem[];
 };
 
+const editableStatuses = [
+  { value: "DRAFT", label: "Brouillon" },
+  { value: "SENT", label: "Envoyée" },
+  { value: "ACCEPTED", label: "Acceptée" },
+  { value: "REJECTED", label: "Refusée" },
+  { value: "EXPIRED", label: "Expirée" },
+];
+
 export default function QuotesSection() {
   const [clients, setClients] = useState<Client[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [convertingId, setConvertingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [clearingDrafts, setClearingDrafts] = useState(false);
+  const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
+  const [editingQuoteNumber, setEditingQuoteNumber] = useState("");
+  const [status, setStatus] = useState("DRAFT");
+
   const [clientId, setClientId] = useState("");
   const [validUntil, setValidUntil] = useState("");
   const [notes, setNotes] = useState("");
@@ -51,7 +65,6 @@ export default function QuotesSection() {
   const [loadingData, setLoadingData] = useState(true);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  
 
   const subtotal = useMemo(() => {
     return items.reduce((sum, item) => {
@@ -62,6 +75,10 @@ export default function QuotesSection() {
   const tps = useMemo(() => subtotal * 0.05, [subtotal]);
   const tvq = useMemo(() => subtotal * 0.09975, [subtotal]);
   const total = useMemo(() => subtotal + tps + tvq, [subtotal, tps, tvq]);
+  const draftCount = useMemo(
+    () => quotes.filter((quote) => quote.status === "DRAFT").length,
+    [quotes]
+  );
 
   const loadQuotes = async () => {
     const res = await fetch("/api/quotes");
@@ -158,6 +175,9 @@ export default function QuotesSection() {
   };
 
   const resetForm = () => {
+    setEditingQuoteId(null);
+    setEditingQuoteNumber("");
+    setStatus("DRAFT");
     setClientId("");
     setValidUntil("");
     setNotes("");
@@ -168,6 +188,44 @@ export default function QuotesSection() {
         unitPrice: 0,
       },
     ]);
+  };
+
+  const startEditQuote = (quote: Quote) => {
+    if (quote.status === "CONVERTED") {
+      setError("Une soumission convertie ne peut plus être modifiée.");
+      return;
+    }
+
+    setMessage("");
+    setError("");
+    setEditingQuoteId(quote.id);
+    setEditingQuoteNumber(quote.quoteNumber);
+    setStatus(quote.status || "DRAFT");
+    setClientId(String(quote.clientId));
+    setNotes(quote.notes ?? "");
+
+    if (quote.validUntil) {
+      const date = new Date(quote.validUntil);
+      setValidUntil(Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10));
+    } else {
+      setValidUntil("");
+    }
+
+    const normalizedItems = Array.isArray(quote.items)
+      ? quote.items.map((item) => ({
+          description: String(item.description ?? ""),
+          quantity: Number(item.quantity ?? 1),
+          unitPrice: Number(item.unitPrice ?? 0),
+        }))
+      : [];
+
+    setItems(
+      normalizedItems.length > 0
+        ? normalizedItems
+        : [{ description: "", quantity: 1, unitPrice: 0 }]
+    );
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const submitQuote = async (event: React.FormEvent) => {
@@ -193,8 +251,13 @@ export default function QuotesSection() {
     try {
       setLoading(true);
 
-      const res = await fetch("/api/quotes", {
-        method: "POST",
+      const isEditing = Boolean(editingQuoteId);
+      const endpoint = isEditing
+        ? `/api/quotes/${editingQuoteId}`
+        : "/api/quotes";
+
+      const res = await fetch(endpoint, {
+        method: isEditing ? "PATCH" : "POST",
         headers: {
           "Content-Type": "application/json",
         },
@@ -203,19 +266,30 @@ export default function QuotesSection() {
           items,
           validUntil: validUntil || null,
           notes: notes || null,
-          status: "DRAFT",
+          status: isEditing ? status : "DRAFT",
         }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Erreur lors de la création.");
+        throw new Error(
+          data.error ||
+            (isEditing
+              ? "Erreur lors de la modification."
+              : "Erreur lors de la création.")
+        );
       }
 
-      setMessage(
-        `Soumission ${data.quote?.quoteNumber ?? ""} créée avec succès.`
-      );
+      if (isEditing) {
+        setMessage(
+          `Soumission ${editingQuoteNumber} mise à jour avec succès.`
+        );
+      } else {
+        setMessage(
+          `Soumission ${data.quote?.quoteNumber ?? ""} créée avec succès.`
+        );
+      }
 
       resetForm();
       await loadQuotes();
@@ -225,7 +299,9 @@ export default function QuotesSection() {
       setError(
         err instanceof Error
           ? err.message
-          : "Erreur lors de la création de la soumission."
+          : editingQuoteId
+            ? "Erreur lors de la modification de la soumission."
+            : "Erreur lors de la création de la soumission."
       );
     } finally {
       setLoading(false);
@@ -249,8 +325,8 @@ export default function QuotesSection() {
     });
   };
 
-  const statusLabel = (status: string) => {
-    switch (status) {
+  const statusLabel = (quoteStatus: string) => {
+    switch (quoteStatus) {
       case "DRAFT":
         return "Brouillon";
       case "SENT":
@@ -264,53 +340,159 @@ export default function QuotesSection() {
       case "CONVERTED":
         return "Convertie";
       default:
-        return status;
+        return quoteStatus;
+    }
+  };
+
+  const deleteQuote = async (quote: Quote) => {
+    const confirmed = window.confirm(
+      `Supprimer définitivement la soumission ${quote.quoteNumber} ?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setDeletingId(quote.id);
+      setMessage("");
+      setError("");
+
+      const res = await fetch(`/api/quotes/${quote.id}`, {
+        method: "DELETE",
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Erreur lors de la suppression.");
+      }
+
+      if (editingQuoteId === quote.id) {
+        resetForm();
+      }
+
+      setMessage(
+        data.message || `Soumission ${quote.quoteNumber} supprimée avec succès.`
+      );
+
+      await loadQuotes();
+    } catch (err) {
+      console.error(err);
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Erreur lors de la suppression de la soumission."
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const clearDrafts = async () => {
+    if (draftCount === 0) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Supprimer définitivement ${draftCount} brouillon${
+        draftCount > 1 ? "s" : ""
+      } ?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setClearingDrafts(true);
+      setMessage("");
+      setError("");
+
+      const res = await fetch("/api/quotes", {
+        method: "DELETE",
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(
+          data.error || "Erreur lors de la suppression des brouillons."
+        );
+      }
+
+      const editedQuote = quotes.find(
+        (quote) => quote.id === editingQuoteId
+      );
+
+      if (editedQuote?.status === "DRAFT") {
+        resetForm();
+      }
+
+      setMessage(
+        data.message || `${data.deletedCount ?? draftCount} brouillon(s) supprimé(s).`
+      );
+
+      await loadQuotes();
+    } catch (err) {
+      console.error(err);
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Erreur lors de la suppression des brouillons."
+      );
+    } finally {
+      setClearingDrafts(false);
     }
   };
 
   const convertQuoteToInvoice = async (quoteId: string) => {
-  const confirmed = window.confirm(
-    "Convertir cette soumission en facture ?"
-  );
+    const confirmed = window.confirm(
+      "Convertir cette soumission en facture ?"
+    );
 
-  if (!confirmed) {
-    return;
-  }
-
-  try {
-    setConvertingId(quoteId);
-    setMessage("");
-    setError("");
-
-    const res = await fetch(`/api/quotes/${quoteId}/convert`, {
-      method: "POST",
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      throw new Error(
-        data.error || "Erreur lors de la conversion."
-      );
+    if (!confirmed) {
+      return;
     }
 
-    setMessage(
-      `Soumission convertie en facture ${data.invoiceNumber}.`
-    );
+    try {
+      setConvertingId(quoteId);
+      setMessage("");
+      setError("");
 
-    await loadQuotes();
-  } catch (err) {
-    console.error(err);
+      const res = await fetch(`/api/quotes/${quoteId}/convert`, {
+        method: "POST",
+      });
 
-    setError(
-      err instanceof Error
-        ? err.message
-        : "Erreur lors de la conversion en facture."
-    );
-  } finally {
-    setConvertingId(null);
-  }
-};
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Erreur lors de la conversion.");
+      }
+
+      if (editingQuoteId === quoteId) {
+        resetForm();
+      }
+
+      setMessage(
+        `Soumission convertie en facture ${data.invoiceNumber}.`
+      );
+
+      await loadQuotes();
+    } catch (err) {
+      console.error(err);
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Erreur lors de la conversion en facture."
+      );
+    } finally {
+      setConvertingId(null);
+    }
+  };
 
   return (
     <div
@@ -337,7 +519,9 @@ export default function QuotesSection() {
             fontWeight: 700,
           }}
         >
-          📋 Nouvelle soumission
+          {editingQuoteId
+            ? `✏️ Modifier la soumission ${editingQuoteNumber}`
+            : "📋 Nouvelle soumission"}
         </h2>
 
         <p
@@ -348,7 +532,9 @@ export default function QuotesSection() {
             fontSize: "14px",
           }}
         >
-          Prépare une offre de prix pour ton client avant de créer une facture.
+          {editingQuoteId
+            ? "Modifie les informations de la soumission puis enregistre les changements."
+            : "Prépare une offre de prix pour ton client avant de créer une facture."}
         </p>
 
         {message && (
@@ -385,7 +571,9 @@ export default function QuotesSection() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gridTemplateColumns: editingQuoteId
+                ? "repeat(auto-fit, minmax(200px, 1fr))"
+                : "repeat(auto-fit, minmax(220px, 1fr))",
               gap: "16px",
               marginBottom: "22px",
             }}
@@ -419,6 +607,24 @@ export default function QuotesSection() {
                 style={inputStyle}
               />
             </div>
+
+            {editingQuoteId && (
+              <div>
+                <label style={labelStyle}>Statut</label>
+
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                  style={inputStyle}
+                >
+                  {editableStatuses.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           <div
@@ -610,9 +816,34 @@ export default function QuotesSection() {
             style={{
               display: "flex",
               justifyContent: "flex-end",
+              gap: "10px",
               marginTop: "22px",
             }}
           >
+            {editingQuoteId && (
+              <button
+                type="button"
+                onClick={() => {
+                  resetForm();
+                  setMessage("");
+                  setError("");
+                }}
+                disabled={loading}
+                style={{
+                  padding: "11px 18px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--border)",
+                  backgroundColor: "var(--surface-soft)",
+                  color: "var(--foreground)",
+                  cursor: loading ? "not-allowed" : "pointer",
+                  fontWeight: 700,
+                  opacity: loading ? 0.7 : 1,
+                }}
+              >
+                Annuler
+              </button>
+            )}
+
             <button
               type="submit"
               disabled={loading}
@@ -627,7 +858,13 @@ export default function QuotesSection() {
                 opacity: loading ? 0.7 : 1,
               }}
             >
-              {loading ? "Création..." : "Créer la soumission"}
+              {loading
+                ? editingQuoteId
+                  ? "Enregistrement..."
+                  : "Création..."
+                : editingQuoteId
+                  ? "Enregistrer les modifications"
+                  : "Créer la soumission"}
             </button>
           </div>
         </form>
@@ -641,16 +878,52 @@ export default function QuotesSection() {
           padding: "24px",
         }}
       >
-        <h2
+        <div
           style={{
-            marginTop: 0,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "12px",
+            flexWrap: "wrap",
             marginBottom: "18px",
-            fontSize: "20px",
-            color: "var(--foreground)",
           }}
         >
-          Soumissions
-        </h2>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: "20px",
+              color: "var(--foreground)",
+            }}
+          >
+            Soumissions
+          </h2>
+
+          <button
+            type="button"
+            onClick={clearDrafts}
+            disabled={draftCount === 0 || clearingDrafts || loading}
+            style={{
+              padding: "8px 11px",
+              borderRadius: "7px",
+              border: "1px solid rgba(239, 68, 68, 0.45)",
+              backgroundColor: "rgba(239, 68, 68, 0.10)",
+              color: "var(--danger)",
+              cursor:
+                draftCount === 0 || clearingDrafts || loading
+                  ? "not-allowed"
+                  : "pointer",
+              fontSize: "12px",
+              fontWeight: 700,
+              opacity:
+                draftCount === 0 || clearingDrafts || loading ? 0.55 : 1,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {clearingDrafts
+              ? "Suppression..."
+              : `🗑 Vider les brouillons (${draftCount})`}
+          </button>
+        </div>
 
         {loadingData ? (
           <p style={{ color: "var(--text-muted)" }}>
@@ -666,7 +939,7 @@ export default function QuotesSection() {
               style={{
                 width: "100%",
                 borderCollapse: "collapse",
-                minWidth: "760px",
+                minWidth: "900px",
               }}
             >
               <thead>
@@ -720,52 +993,121 @@ export default function QuotesSection() {
                     </Td>
 
                     <Td align="right">
-                      <strong>
-                        {formatMoney(quote.amountTotal)}
-                      </strong>
+                      <strong>{formatMoney(quote.amountTotal)}</strong>
                     </Td>
-                    
+
                     <Td align="right">
-                    {quote.status === "CONVERTED" ? (
-                      <span
-                        style={{
-                          color: "var(--success)",
-                          fontSize: "13px",
-                          fontWeight: 700,
-                        }}
-                      >
-                        ✓ Facture créée
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => convertQuoteToInvoice(quote.id)}
-                        disabled={convertingId === quote.id}
-                        style={{
-                          padding: "8px 11px",
-                          borderRadius: "7px",
-                          border: "none",
-                          backgroundColor: "var(--primary)",
-                          color: "#fff",
-                          cursor:
-                            convertingId === quote.id
-                              ? "not-allowed"
-                              : "pointer",
-                          fontSize: "12px",
-                          fontWeight: 700,
-                          opacity:
-                            convertingId === quote.id
-                              ? 0.65
-                              : 1,
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {convertingId === quote.id
-                          ? "Conversion..."
-                          : "Convertir en facture"}
-                      </button>
-                    )}
-                  </Td>
+                      {quote.status === "CONVERTED" ? (
+                        <span
+                          style={{
+                            color: "var(--success)",
+                            fontSize: "13px",
+                            fontWeight: 700,
+                          }}
+                        >
+                          ✓ Facture créée
+                        </span>
+                      ) : (
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "flex-end",
+                            alignItems: "center",
+                            gap: "8px",
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => startEditQuote(quote)}
+                            disabled={loading || convertingId === quote.id}
+                            style={{
+                              padding: "8px 11px",
+                              borderRadius: "7px",
+                              border: "1px solid var(--border)",
+                              backgroundColor: "var(--surface-soft)",
+                              color: "var(--foreground)",
+                              cursor:
+                                loading || convertingId === quote.id
+                                  ? "not-allowed"
+                                  : "pointer",
+                              fontSize: "12px",
+                              fontWeight: 700,
+                              whiteSpace: "nowrap",
+                              opacity:
+                                loading || convertingId === quote.id ? 0.65 : 1,
+                            }}
+                          >
+                            Modifier
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => deleteQuote(quote)}
+                            disabled={
+                              deletingId === quote.id ||
+                              convertingId === quote.id ||
+                              loading ||
+                              clearingDrafts
+                            }
+                            style={{
+                              padding: "8px 11px",
+                              borderRadius: "7px",
+                              border: "1px solid rgba(239, 68, 68, 0.45)",
+                              backgroundColor: "rgba(239, 68, 68, 0.10)",
+                              color: "var(--danger)",
+                              cursor:
+                                deletingId === quote.id ||
+                                convertingId === quote.id ||
+                                loading ||
+                                clearingDrafts
+                                  ? "not-allowed"
+                                  : "pointer",
+                              fontSize: "12px",
+                              fontWeight: 700,
+                              opacity:
+                                deletingId === quote.id ||
+                                convertingId === quote.id ||
+                                loading ||
+                                clearingDrafts
+                                  ? 0.65
+                                  : 1,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {deletingId === quote.id
+                              ? "Suppression..."
+                              : "Supprimer"}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => convertQuoteToInvoice(quote.id)}
+                            disabled={convertingId === quote.id || loading}
+                            style={{
+                              padding: "8px 11px",
+                              borderRadius: "7px",
+                              border: "none",
+                              backgroundColor: "var(--primary)",
+                              color: "#fff",
+                              cursor:
+                                convertingId === quote.id || loading
+                                  ? "not-allowed"
+                                  : "pointer",
+                              fontSize: "12px",
+                              fontWeight: 700,
+                              opacity:
+                                convertingId === quote.id || loading ? 0.65 : 1,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {convertingId === quote.id
+                              ? "Conversion..."
+                              : "Convertir en facture"}
+                          </button>
+                        </div>
+                      )}
+                    </Td>
                   </tr>
                 ))}
               </tbody>
