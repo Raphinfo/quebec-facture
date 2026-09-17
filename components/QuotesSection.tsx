@@ -31,13 +31,23 @@ type Quote = {
   items: QuoteItem[];
 };
 
-const editableStatuses = [
-  { value: "DRAFT", label: "Brouillon" },
-  { value: "SENT", label: "Envoyée" },
-  { value: "ACCEPTED", label: "Acceptée" },
-  { value: "REJECTED", label: "Refusée" },
-  { value: "EXPIRED", label: "Expirée" },
-];
+const statusLabels: Record<string, string> = {
+  DRAFT: "Brouillon",
+  SENT: "Envoyée",
+  ACCEPTED: "Acceptée",
+  REJECTED: "Refusée",
+  EXPIRED: "Expirée",
+  CONVERTED: "Convertie",
+};
+
+const allowedStatusTransitions: Record<string, string[]> = {
+  DRAFT: ["DRAFT", "SENT"],
+  SENT: ["SENT", "ACCEPTED", "REJECTED", "EXPIRED"],
+  ACCEPTED: ["ACCEPTED"],
+  REJECTED: ["REJECTED"],
+  EXPIRED: ["EXPIRED"],
+  CONVERTED: ["CONVERTED"],
+};
 
 export default function QuotesSection() {
   const [clients, setClients] = useState<Client[]>([]);
@@ -617,11 +627,15 @@ export default function QuotesSection() {
                   onChange={(e) => setStatus(e.target.value)}
                   style={inputStyle}
                 >
-                  {editableStatuses.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
+                 {(
+                  allowedStatusTransitions[
+                    quotes.find((quote) => quote.id === editingQuoteId)?.status || "DRAFT"
+                  ] || ["DRAFT"]
+                ).map((statusValue) => (
+                  <option key={statusValue} value={statusValue}>
+                    {statusLabels[statusValue] || statusValue}
+                  </option>
+                ))}
                 </select>
               </div>
             )}

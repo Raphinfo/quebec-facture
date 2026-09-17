@@ -43,51 +43,67 @@ export async function PATCH(
 
 
     // Vérifie que la soumission existe et appartient à l'utilisateur
+const body = await request.json();
+
+const {
+  clientId,
+  items,
+  validUntil,
+  notes,
+  status,
+} = body;
+
     const existingQuotes = await sql`
-      SELECT
+    SELECT
         "id",
         "status",
         "clientId"
-      FROM "Quote"
-      WHERE "id" = ${quoteId}
+    FROM "Quote"
+    WHERE "id" = ${quoteId}
         AND "userId" = ${userId}
-      LIMIT 1
+    LIMIT 1
     `;
 
     if (existingQuotes.length === 0) {
-      return NextResponse.json(
+    return NextResponse.json(
         { error: 'Soumission introuvable.' },
         { status: 404 }
-      );
+    );
     }
 
     const existingQuote = existingQuotes[0];
 
     if (existingQuote.status === 'CONVERTED') {
-      return NextResponse.json(
+    return NextResponse.json(
         {
-          error:
+        error:
             'Une soumission déjà convertie en facture ne peut plus être modifiée.',
         },
         { status: 409 }
-      );
+    );
     }
 
-    const body = await request.json();
+    const currentStatus = existingQuote.status;
 
-    const {
-      clientId,
-      items,
-      validUntil,
-      notes,
-      status,
-    } = body;
+    const allowedTransitions: Record<string, string[]> = {
+    DRAFT: ['SENT'],
+    SENT: ['ACCEPTED', 'REJECTED', 'EXPIRED'],
+    ACCEPTED: [],
+    REJECTED: [],
+    EXPIRED: [],
+    CONVERTED: [],
+    };
 
-    if (!clientId) {
-      return NextResponse.json(
-        { error: 'Le client est requis.' },
-        { status: 400 }
-      );
+    if (
+    status !== currentStatus &&
+    !allowedTransitions[currentStatus]?.includes(status)
+    ) {
+    return NextResponse.json(
+        {
+        error: `Transition de statut interdite : ${currentStatus} → ${status}.`,
+        },
+        { status: 409 }
+    );
     }
 
     const parsedClientId =
@@ -326,7 +342,7 @@ export async function DELETE(
         { status: 409 }
       );
     }
-
+    
     await sql`
       DELETE FROM "Quote"
       WHERE "id" = ${quoteId}

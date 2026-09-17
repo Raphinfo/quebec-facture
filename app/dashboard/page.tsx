@@ -39,44 +39,51 @@ function DashboardContent() {
   // ============================================================
   // NAVIGATION
   // ============================================================
+const [activeTab, setActiveTab] =
+  useState<ActiveTab>('billing');
 
-  const [activeTab, setActiveTab] =
-    useState<ActiveTab>('billing');
-
-  useEffect(() => {
-    switch (tabParam) {
-      
-      case 'billing':
+useEffect(() => {
+  switch (tabParam) {
+    case 'billing':
       setActiveTab('billing');
       break;
-      case 'company':
-      case 'profile':
-        setActiveTab('profile');
-        break;
 
-      case 'quotes':
-        setActiveTab('quotes');
-        break;
-      case 'expenses':
-        setActiveTab('expenses');
-        break;
+    case 'company':
+    case 'profile':
+      setActiveTab('profile');
+      break;
 
-      case 'privacy':
-        setActiveTab('privacy');
-        break;
+    case 'quotes':
+      setActiveTab('quotes');
+      break;
 
-      case 'subscription':
-        setActiveTab('subscription');
-        break;
+    case 'expenses':
+      setActiveTab('expenses');
+      break;
 
-      case 'settings':
-        setActiveTab('settings');
-        break;
+    case 'privacy':
+      setActiveTab('privacy');
+      break;
 
-      default:
-        setActiveTab('billing');
-    }
-  }, [tabParam]);
+    case 'subscription':
+      setActiveTab('subscription');
+      break;
+
+    case 'settings':
+      setActiveTab('settings');
+      break;
+
+    default:
+      setActiveTab('billing');
+  }
+}, [tabParam]);
+
+// Recharge les factures chaque fois qu'on revient sur Facturation
+useEffect(() => {
+  if (activeTab === 'billing') {
+    fetchInvoices();
+  }
+}, [activeTab]);
 
   // ============================================================
   // AUTHENTIFICATION
