@@ -252,6 +252,12 @@ export default function QuotesSection() {
   const submitQuote = async (event: React.FormEvent) => {
     event.preventDefault();
 
+      const today = new Date().toISOString().slice(0, 10);
+  if (validUntil && validUntil < today) {
+    setError("La date de validité ne peut pas être antérieure à aujourd’hui.");
+    return;
+  }
+
     setMessage("");
     setError("");
 
@@ -643,11 +649,12 @@ const handlePrintQuote = (quote: Quote) => {
               <label style={labelStyle}>Valide jusqu&apos;au</label>
 
               <input
-                type="date"
-                value={validUntil}
-                onChange={(e) => setValidUntil(e.target.value)}
-                style={inputStyle}
-              />
+              type="date"
+              min={new Date().toISOString().slice(0, 10)}
+              value={validUntil}
+              onChange={(e) => setValidUntil(e.target.value)}
+              style={inputStyle}
+            />
             </div>
 
             {editingQuoteId && (
