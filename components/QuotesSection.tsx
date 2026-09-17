@@ -503,7 +503,208 @@ export default function QuotesSection() {
       setConvertingId(null);
     }
   };
+const handlePrintQuote = (quote: Quote) => {
+  const subtotal = Number(quote.amountSubtotal) || 0;
+  const tps = Number(quote.tpsAmount) || 0;
+  const tvq = Number(quote.tvqAmount) || 0;
+  const total = Number(quote.amountTotal) || 0;
 
+  const parsedItems = Array.isArray(quote.items) ? quote.items : [];
+
+  const createdDate = new Date(
+    quote.createdAt || Date.now()
+  ).toLocaleDateString("fr-CA");
+
+  const validUntil = quote.validUntil
+    ? new Date(quote.validUntil).toLocaleDateString("fr-CA")
+    : "—";
+
+  const printWindow = window.open("", "_blank");
+
+  if (!printWindow) return;
+
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>Soumission ${quote.quoteNumber}</title>
+
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            padding: 40px;
+            color: #333;
+            line-height: 1.5;
+          }
+
+          .header {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 20px;
+          }
+
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 30px;
+          }
+
+          th,
+          td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+          }
+
+          th {
+            background-color: #f7fafc;
+          }
+
+          .text-right {
+            text-align: right;
+          }
+
+          .total-row {
+            font-weight: bold;
+            background-color: #ebf8ff;
+            color: #2b6cb0;
+          }
+
+          .notes {
+            margin-top: 30px;
+            padding: 15px;
+            background-color: #f7fafc;
+            border-radius: 6px;
+          }
+        </style>
+      </head>
+
+      <body>
+        <div class="header">
+          <div>
+            <h2>SOUMISSION</h2>
+
+            <p>
+              <strong>Numéro :</strong>
+              ${quote.quoteNumber}
+            </p>
+
+            <p>
+              <strong>Date :</strong>
+              ${createdDate}
+            </p>
+
+            <p>
+              <strong>Valide jusqu'au :</strong>
+              ${validUntil}
+            </p>
+          </div>
+        </div>
+
+        <div style="margin-top: 30px;">
+          <h3>Soumission pour :</h3>
+
+          <p>
+            <strong>${quote.clientName || "Client"}</strong>
+          </p>
+
+          ${
+            quote.clientEmail
+              ? `<p>${quote.clientEmail}</p>`
+              : ""
+          }
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th class="text-right">Qté</th>
+              <th class="text-right">Prix unitaire</th>
+              <th class="text-right">Montant</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            ${parsedItems
+              .map((item) => {
+                const quantity = Number(item.quantity) || 0;
+                const unitPrice = Number(item.unitPrice) || 0;
+                const lineTotal = quantity * unitPrice;
+
+                return `
+                  <tr>
+                    <td>${item.description || "Service général"}</td>
+
+                    <td class="text-right">
+                      ${quantity}
+                    </td>
+
+                    <td class="text-right">
+                      ${unitPrice.toFixed(2)} $
+                    </td>
+
+                    <td class="text-right">
+                      ${lineTotal.toFixed(2)} $
+                    </td>
+                  </tr>
+                `;
+              })
+              .join("")}
+
+            <tr>
+              <td
+                colspan="3"
+                style="border-top: 2px solid #ddd; padding-top: 20px;"
+              >
+                <strong>Sous-total</strong>
+              </td>
+
+              <td
+                class="text-right"
+                style="border-top: 2px solid #ddd; padding-top: 20px;"
+              >
+                ${subtotal.toFixed(2)} $
+              </td>
+            </tr>
+
+            <tr>
+              <td colspan="3">TPS (5%)</td>
+              <td class="text-right">${tps.toFixed(2)} $</td>
+            </tr>
+
+            <tr>
+              <td colspan="3">TVQ (9.975%)</td>
+              <td class="text-right">${tvq.toFixed(2)} $</td>
+            </tr>
+
+            <tr class="total-row">
+              <td colspan="3">TOTAL</td>
+              <td class="text-right">${total.toFixed(2)} $</td>
+            </tr>
+          </tbody>
+        </table>
+
+        ${
+          quote.notes
+            ? `
+              <div class="notes">
+                <strong>Notes / conditions</strong>
+                <p>${quote.notes}</p>
+              </div>
+            `
+            : ""
+        }
+
+        <script>
+          window.print();
+        </script>
+      </body>
+    </html>
+  `);
+
+  printWindow.document.close();
+};
   return (
     <div
       style={{
@@ -1053,6 +1254,30 @@ export default function QuotesSection() {
                             }}
                           >
                             Modifier
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handlePrintQuote(quote)}
+                            disabled={loading || convertingId === quote.id}
+                            style={{
+                              padding: "8px 11px",
+                              borderRadius: "7px",
+                              border: "1px solid var(--border)",
+                              backgroundColor: "var(--surface-soft)",
+                              color: "var(--foreground)",
+                              cursor:
+                                loading || convertingId === quote.id
+                                  ? "not-allowed"
+                                  : "pointer",
+                              fontSize: "12px",
+                              fontWeight: 700,
+                              whiteSpace: "nowrap",
+                              opacity:
+                                loading || convertingId === quote.id ? 0.65 : 1,
+                            }}
+                          >
+                            🖨 PDF
                           </button>
 
                           <button
