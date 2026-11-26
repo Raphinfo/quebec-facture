@@ -49,6 +49,13 @@ export default function Page() {
         vos données et conserver les documents nécessaires à votre activité.
         Pour signaler un problème, utilisez le canal de support.
       </p>
+      <h2>Exploitant et droit applicable</h2>
+      <p>
+        Le service Québec Facture est exploité par{" "}
+        {process.env.OPERATOR_NAME || "Québec Facture"}{" "}
+        ({process.env.OPERATOR_CITY || "Québec, Canada"}). Les présentes
+        conditions sont régies par les lois applicables au Québec et au Canada.
+      </p>
       <p>
         <Link href="/contact">Contacter le support</Link> ·{" "}
         <Link href="/politique-de-confidentialite">

@@ -40,7 +40,7 @@ export async function GET() {
   try {
     const userId = await requireUser();
     const rows =
-      await getDb()`SELECT id,number AS "invoiceNumber",COALESCE("amountSubtotal","sousTotal") AS "amountSubtotal",
+      await getDb()`SELECT id,"clientId",number AS "invoiceNumber",COALESCE("amountSubtotal","sousTotal") AS "amountSubtotal",
       COALESCE("tpsAmount","totalTPS") AS "tpsAmount",COALESCE("tvqAmount","totalTVQ") AS "tvqAmount",
       COALESCE("amountTotal","totalGlobal") AS "amountTotal",status,"dueDate","sentAt",COALESCE(items::jsonb,"itemsJson"::jsonb) AS items,"createdAt","updatedAt",
       COALESCE("clientSnapshot"->>'name',"clientName") AS "clientName",COALESCE("clientSnapshot"->>'company',"clientCompany") AS "clientCompany",

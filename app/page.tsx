@@ -1,9 +1,62 @@
 import Link from "next/link";
 import Brand from "@/components/Brand";
 
+const FAQS = [
+  [
+    "Comment fonctionne le forfait gratuit Découverte ?",
+    "Vous pouvez créer votre compte sans carte bancaire, configurer votre entreprise, gérer vos clients et émettre jusqu’à 3 factures complètes (avec soumissions illimitées, suivi des dépenses et export de vos données).",
+  ],
+  [
+    "La TPS (5 %) et la TVQ (9,975 %) sont-elles calculées automatiquement ?",
+    "Oui. Dès que vous inscrivez vos numéros de TPS et TVQ dans Mon entreprise, les taxes sont calculées au cent près sur vos factures et soumissions, avec possibilité d’exempter une ligne si besoin.",
+  ],
+  [
+    "Comment mes clients me paient-ils ?",
+    "Indiquez simplement votre courriel pour Virement Interac dans Mon entreprise : vos instructions de virement s’affichent automatiquement sur chaque facture PDF et dans les courriels envoyés à vos clients.",
+  ],
+  [
+    "Puis-je annuler mon abonnement Professionnel à tout moment ?",
+    "Oui, en deux clics depuis l’onglet Abonnement via le portail sécurisé Stripe. Vous conservez l’accès à votre historique et l’export complet (CSV et JSON) de toutes vos données.",
+  ],
+  [
+    "Comment préparer ma déclaration de TPS/TVQ ?",
+    "L’onglet Rapports & Taxes compile vos ventes hors taxes, la TPS perçue, la TVQ perçue et vos dépenses par trimestre ou année, avec export CSV prêt pour votre comptable.",
+  ],
+];
+
 export default function Home() {
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "SoftwareApplication",
+        name: "Québec Facture",
+        applicationCategory: "BusinessApplication",
+        operatingSystem: "Web",
+        inLanguage: "fr-CA",
+        offers: {
+          "@type": "Offer",
+          price: "0",
+          priceCurrency: "CAD",
+        },
+      },
+      {
+        "@type": "FAQPage",
+        mainEntity: FAQS.map(([q, a]) => ({
+          "@type": "Question",
+          name: q,
+          acceptedAnswer: { "@type": "Answer", text: a },
+        })),
+      },
+    ],
+  };
+
   return (
     <div className="landing">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <header className="marketing-nav">
         <Brand />
         <nav aria-label="Navigation principale">
@@ -211,6 +264,21 @@ export default function Home() {
             CA/mois sauf annulation avant la fin de l’essai.
           </small>
         </article>
+      </section>
+
+      <section id="faq" className="marketing-section faq-section">
+        <div className="section-heading">
+          <span className="eyebrow">QUESTIONS FRÉQUENTES</span>
+          <h2>Tout ce qu’il faut savoir avant de commencer.</h2>
+        </div>
+        <div className="faq-list">
+          {FAQS.map(([question, answer]) => (
+            <details key={question} className="faq-item">
+              <summary>{question}</summary>
+              <p>{answer}</p>
+            </details>
+          ))}
+        </div>
       </section>
 
       <section className="closing-band">

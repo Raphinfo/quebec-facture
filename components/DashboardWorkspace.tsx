@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import QuotesSection from "./QuotesSection";
 import TaxReportSection from "./TaxReportSection";
@@ -36,12 +36,14 @@ type Client = {
 };
 type Line = {
   description: string;
-  amount: string;
+  quantity: string;
+  unitPrice: string;
   isTpsApplicable: boolean;
   isTvqApplicable: boolean;
 };
 type Invoice = {
   id: string;
+  clientId?: number | null;
   invoiceNumber: string;
   amountSubtotal: number;
   tpsAmount: number;
@@ -65,6 +67,8 @@ type Invoice = {
     amount: number;
     quantity?: number;
     unitPrice?: number;
+    isTpsApplicable?: boolean;
+    isTvqApplicable?: boolean;
   }[];
 };
 type Expense = {
@@ -78,7 +82,8 @@ const money = (v: number | string) =>
   Number(v).toLocaleString("fr-CA", { style: "currency", currency: "CAD" });
 const blankLine = (): Line => ({
   description: "",
-  amount: "",
+  quantity: "1",
+  unitPrice: "",
   isTpsApplicable: true,
   isTvqApplicable: true,
 });
@@ -110,6 +115,7 @@ const json = (body: unknown, method = "POST"): RequestInit => ({
   body: JSON.stringify(body),
 });
 export default function DashboardWorkspace() {
+  const router = useRouter();
   const tab = useSearchParams().get("tab") || "billing";
   const [profile, setProfile] = useState<Profile>(initialProfile),
     [clients, setClients] = useState<Client[]>([]),
@@ -128,6 +134,8 @@ export default function DashboardWorkspace() {
   const [clientDrawerOpen, setClientDrawerOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<CreatedClient | null>(null);
   const [companyConfigured, setCompanyConfigured] = useState(false);
+  const [closePassword, setClosePassword] = useState("");
+  const [closeConfirm, setCloseConfirm] = useState(false);
   const requestRef = useRef<{ body: string; key: string } | null>(null);
   const load = useCallback(
     () =>
@@ -268,6 +276,45 @@ export default function DashboardWorkspace() {
       setMessage(result.message);
     });
   }
+  function duplicateInvoice(invoice: Invoice) {
+    const matchedClient =
+      (invoice.clientId &&
+        clients.find((c) => c.id === Number(invoice.clientId))) ||
+      clients.find((c) => c.name === invoice.clientName);
+    setClientId(matchedClient ? String(matchedClient.id) : "");
+    setLines(
+      invoice.items?.length
+        ? invoice.items.map((item) => ({
+            description: item.description || "",
+            quantity: String(item.quantity ?? 1),
+            unitPrice: String(item.unitPrice ?? item.amount ?? ""),
+            isTpsApplicable: item.isTpsApplicable ?? true,
+            isTvqApplicable: item.isTvqApplicable ?? true,
+          }))
+        : [blankLine()],
+    );
+    setError("");
+    setMessage(
+      `Prestations de ${invoice.invoiceNumber} copiées dans le formulaire ci-dessus.`,
+    );
+    document
+      .getElementById("create-invoice")
+      ?.scrollIntoView({ behavior: "smooth" });
+  }
+  async function closeAccount(e: React.FormEvent) {
+    e.preventDefault();
+    await action(async () => {
+      await api("/api/account/close", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          password: closePassword,
+          confirm: closeConfirm,
+        }),
+      });
+      router.replace("/");
+    });
+  }
   function print(invoice: Invoice) {
     try {
       printDocument({
@@ -320,6 +367,15 @@ export default function DashboardWorkspace() {
   const todayIso = new Date().toLocaleDateString("en-CA", {
     timeZone: "America/Toronto",
   });
+  const overdueInvoices = invoices.filter(
+    (i) =>
+      i.status === "PENDING" &&
+      Boolean(i.dueDate && String(i.dueDate).slice(0, 10) < todayIso),
+  );
+  const overdueTotal = overdueInvoices.reduce(
+    (sum, i) => sum + Number(i.amountTotal),
+    0,
+  );
   const isPro =
     profile.plan === "PRO" &&
     ["ACTIVE", "TRIALING"].includes(profile.subscriptionStatus);
@@ -445,6 +501,28 @@ export default function DashboardWorkspace() {
                   </div>
                 </section>
               )}
+              {overdueInvoices.length > 0 && (
+                <section className="overdue-banner" role="status">
+                  <div>
+                    <strong>
+                      {overdueInvoices.length} facture
+                      {overdueInvoices.length > 1 ? "s" : ""} en retard de
+                      paiement ({money(overdueTotal)})
+                    </strong>
+                    <p>
+                      Cliquez sur « Renvoyer » ou « Envoyer » dans votre
+                      historique pour relancer votre client en 1 clic.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="button secondary small-button"
+                    onClick={() => setStatusFilter("PENDING")}
+                  >
+                    Voir en attente ↓
+                  </button>
+                </section>
+              )}
               <section className="metrics" aria-label="Résumé de l’activité">
                 <article className="metric-paid">
                   <span>Encaissé · toutes périodes</span>
@@ -515,13 +593,13 @@ export default function DashboardWorkspace() {
                       <legend>Prestations</legend>
                       {lines.map((line, index) => (
                         <div className="invoice-line-editor" key={index}>
-                          <div className="line-fields">
+                          <div className="line-fields invoice-line-grid">
                             <label>
                               Service ou produit
                               <input
                                 required
                                 maxLength={1000}
-                                placeholder="Ex. Consultation et accompagnement"
+                                placeholder="Ex. Consultation horaire"
                                 value={line.description}
                                 onChange={(e) =>
                                   setLines(
@@ -535,19 +613,40 @@ export default function DashboardWorkspace() {
                               />
                             </label>
                             <label>
-                              Montant CAD
+                              Quantité
+                              <input
+                                type="number"
+                                min="0.001"
+                                max="999999"
+                                step="0.001"
+                                required
+                                value={line.quantity}
+                                onChange={(e) =>
+                                  setLines(
+                                    lines.map((l, i) =>
+                                      i === index
+                                        ? { ...l, quantity: e.target.value }
+                                        : l,
+                                    ),
+                                  )
+                                }
+                              />
+                            </label>
+                            <label>
+                              Prix unit. CAD
                               <input
                                 type="number"
                                 min="0"
                                 max="99999999"
                                 step="0.01"
                                 required
-                                value={line.amount}
+                                placeholder="0.00"
+                                value={line.unitPrice}
                                 onChange={(e) =>
                                   setLines(
                                     lines.map((l, i) =>
                                       i === index
-                                        ? { ...l, amount: e.target.value }
+                                        ? { ...l, unitPrice: e.target.value }
                                         : l,
                                     ),
                                   )
@@ -838,6 +937,13 @@ export default function DashboardWorkspace() {
                                     >
                                       Imprimer
                                     </button>
+                                    <button
+                                      type="button"
+                                      className="button secondary small-button"
+                                      onClick={() => duplicateInvoice(i)}
+                                    >
+                                      Dupliquer
+                                    </button>
                                     {i.status !== "CANCELED" && (
                                       <button
                                         type="button"
@@ -998,6 +1104,55 @@ export default function DashboardWorkspace() {
                   disabled={busy || logoReading}
                 >
                   Enregistrer mon entreprise
+                </button>
+              </form>
+            </section>
+          )}
+          {["company", "profile", "settings"].includes(tab) && (
+            <section className="panel profile-panel danger-zone">
+              <span className="eyebrow">GESTION DU COMPTE · LOI 25</span>
+              <h2>Fermer mon compte</h2>
+              <p className="muted">
+                Téléchargez d’abord vos exports comptables (Revenu Québec
+                recommande de conserver vos factures 6 ans). La fermeture
+                annule votre abonnement Stripe actif et supprime définitivement
+                vos accès et données hébergées.
+              </p>
+              <div className="table-actions" style={{ marginBottom: 18 }}>
+                <a href="/api/export" className="button secondary small-button">
+                  Exporter archive JSON ↓
+                </a>
+                <a
+                  href="/api/export/csv?type=invoices"
+                  className="button secondary small-button"
+                >
+                  Exporter factures CSV ↓
+                </a>
+              </div>
+              <form className="form-stack" onSubmit={closeAccount}>
+                <label>
+                  Confirmez votre mot de passe actuel
+                  <input
+                    type="password"
+                    required
+                    value={closePassword}
+                    onChange={(e) => setClosePassword(e.target.value)}
+                  />
+                </label>
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={closeConfirm}
+                    onChange={(e) => setCloseConfirm(e.target.checked)}
+                  />
+                  Je comprends que cette action est définitive et annule mon
+                  abonnement en cours.
+                </label>
+                <button
+                  className="button danger-button"
+                  disabled={busy || !closeConfirm || !closePassword}
+                >
+                  {busy ? "Suppression…" : "Fermer définitivement mon compte"}
                 </button>
               </form>
             </section>

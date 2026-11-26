@@ -2590,6 +2590,100 @@ textarea:user-invalid,
   margin-bottom: 16px;
 }
 
+.invoice-line-grid {
+  grid-template-columns: minmax(180px, 1fr) 92px 130px;
+}
+
+.overdue-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 14px 18px;
+  margin-bottom: 18px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
+  background: color-mix(in srgb, var(--danger) 7%, var(--surface));
+}
+
+.overdue-banner strong {
+  display: block;
+  color: var(--danger);
+  font-size: 14px;
+}
+
+.overdue-banner p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.faq-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.faq-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 4px 20px;
+  box-shadow: var(--card-shadow);
+}
+
+.faq-item summary {
+  padding: 16px 0;
+  font-weight: 650;
+  font-size: 15px;
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.faq-item summary::after {
+  content: "+";
+  font-size: 20px;
+  color: var(--primary);
+  font-weight: 400;
+}
+
+.faq-item[open] summary::after {
+  content: "−";
+}
+
+.faq-item p {
+  margin: 0 0 18px;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.danger-zone {
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--border));
+}
+
+.danger-button {
+  background: var(--danger);
+  color: #ffffff;
+}
+
+.danger-button:hover {
+  filter: brightness(0.92);
+}
+
+@media (max-width: 640px) {
+  .invoice-line-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .invoice-line-grid > label:first-child {
+    grid-column: 1 / -1;
+  }
+}
+
 .calc-toggles {
   display: flex;
   gap: 20px;

@@ -48,6 +48,10 @@ export default function Page() {
         conservation applicables.
       </p>
       <p>
+        Exploitant : {process.env.OPERATOR_NAME || "Québec Facture"} (
+        {process.env.OPERATOR_CITY || "Québec, Canada"}).
+      </p>
+      <p>
         Responsable :{" "}
         {process.env.PRIVACY_OFFICER_TITLE ||
           "Responsable de la protection des renseignements personnels"}
