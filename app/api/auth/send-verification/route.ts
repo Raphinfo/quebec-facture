@@ -4,9 +4,10 @@ import { Resend } from "resend";
 import { requireUser, hashToken } from "@/lib/session";
 import { getDb } from "@/lib/db";
 import { apiError } from "@/lib/http";
-import { InputError, escapeHtml } from "@/lib/validation";
+import { InputError } from "@/lib/validation";
 import { rateLimit } from "@/lib/rate-limit";
 import { appOrigin } from "@/lib/stripe";
+import { buildBrandEmailHtml } from "@/lib/email-signature";
 export async function POST() {
   try {
     const userId = await requireUser();
@@ -31,7 +32,14 @@ export async function POST() {
       from: process.env.RESEND_FROM_EMAIL,
       to: user.email,
       subject: "Confirmez votre adresse courriel",
-      html: `<p>Confirmez votre adresse pour envoyer vos soumissions.</p><p><a href="${escapeHtml(url)}">Confirmer mon adresse</a></p><p>Ce lien expire dans une heure.</p>`,
+      html: buildBrandEmailHtml({
+        eyebrow: "CONFIRMATION COURRIEL",
+        title: "Confirmez votre adresse courriel",
+        bodyHtml: `<p>Confirmez votre adresse pour activer l’envoi de vos soumissions et factures par courriel.</p>
+          <p style="font-size:13px;color:#475569">Ce lien expire dans une heure.</p>`,
+        ctaLabel: "Confirmer mon adresse →",
+        ctaUrl: url,
+      }),
     });
     if (error)
       throw new InputError(

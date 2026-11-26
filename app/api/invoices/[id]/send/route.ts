@@ -5,6 +5,7 @@ import { apiError } from "@/lib/http";
 import { InputError, escapeHtml } from "@/lib/validation";
 import { rateLimit } from "@/lib/rate-limit";
 import { generateDocumentPdf } from "@/lib/pdf";
+import { issuerSignatureHtml } from "@/lib/email-signature";
 import { Resend } from "resend";
 
 export const dynamic = "force-dynamic";
@@ -176,7 +177,11 @@ export async function POST(_: Request, { params }: Ctx) {
                 : ""
           }
 
-          <p style="margin-top:24px;color:#4b5563;font-size:13px">Merci de votre confiance,<br><strong>${escapeHtml(company)}</strong></p>
+          ${issuerSignatureHtml({
+            companyName: company,
+            companyAddress: inv.companyAddress,
+            replyToEmail: user.email,
+          })}
         </div>
       `,
       },

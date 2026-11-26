@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { hashToken } from "@/lib/session";
 import { apiError, readJson } from "@/lib/http";
-import { InputError, emailAddress, escapeHtml } from "@/lib/validation";
+import { InputError, emailAddress } from "@/lib/validation";
 import { rateLimit } from "@/lib/rate-limit";
 import { appOrigin } from "@/lib/stripe";
+import { buildBrandEmailHtml } from "@/lib/email-signature";
 import { Resend } from "resend";
 import { randomBytes } from "node:crypto";
 export async function POST(request: Request) {
@@ -34,7 +35,15 @@ export async function POST(request: Request) {
         from: process.env.RESEND_FROM_EMAIL,
         to: email,
         subject: "Réinitialiser votre mot de passe",
-        html: `<p>Ce lien est valable 30 minutes et utilisable une seule fois.</p><p><a href="${escapeHtml(url)}">Choisir un nouveau mot de passe</a></p><p>Si vous n’êtes pas à l’origine de cette demande, ignorez ce message.</p>`,
+        html: buildBrandEmailHtml({
+          eyebrow: "SÉCURITÉ DU COMPTE",
+          title: "Réinitialisation de votre mot de passe",
+          bodyHtml: `<p>Vous avez demandé à réinitialiser votre mot de passe Québec Facture.</p>
+            <p>Ce lien est valable <strong>30 minutes</strong> et utilisable une seule fois.</p>
+            <p style="font-size:13px;color:#475569">Si vous n’êtes pas à l’origine de cette demande, ignorez simplement ce message.</p>`,
+          ctaLabel: "Choisir un nouveau mot de passe →",
+          ctaUrl: url,
+        }),
       });
       if (error) console.error("Échec d’envoi du courriel de récupération.");
     }

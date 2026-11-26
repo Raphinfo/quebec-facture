@@ -11,6 +11,7 @@ import {
 import { calculateDocument } from "@/lib/money";
 import { rateLimit } from "@/lib/rate-limit";
 import { generateDocumentPdf } from "@/lib/pdf";
+import { issuerSignatureHtml } from "@/lib/email-signature";
 import { Resend } from "resend";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -174,7 +175,11 @@ export async function POST(_: Request, { params }: Ctx) {
           </div>
 
           ${q.notes ? `<p><strong>Notes :</strong><br>${esc(q.notes)}</p>` : ""}
-          <p>Merci,<br>${esc(company)}</p>
+          ${issuerSignatureHtml({
+            companyName: company,
+            companyAddress: q.companyAddress,
+            replyToEmail: user.email,
+          })}
         </div>
       `,
       },
