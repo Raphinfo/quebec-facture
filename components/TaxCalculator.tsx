@@ -10,7 +10,11 @@ const roundCents = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 const fmt = (n: number) =>
   n.toLocaleString("fr-CA", { style: "currency", currency: "CAD" });
 
-export default function TaxCalculator() {
+export default function TaxCalculator({
+  authenticated = false,
+}: {
+  authenticated?: boolean;
+}) {
   const [amountInput, setAmountInput] = useState("1000");
   const [mode, setMode] = useState<"before" | "after">("before");
   const [applyTps, setApplyTps] = useState(true);
@@ -132,11 +136,18 @@ export default function TaxCalculator() {
             </p>
           </div>
           <div className="calc-cta">
-            <Link href="/register" className="button primary">
-              Transformer en vraie facture PDF →
+            <Link
+              href={authenticated ? "/dashboard?tab=billing" : "/register"}
+              className="button primary"
+            >
+              {authenticated
+                ? "Créer une facture maintenant →"
+                : "Transformer en vraie facture PDF →"}
             </Link>
             <small className="muted">
-              3 factures gratuites · Calculs TPS/TVQ automatiques et Virement Interac
+              {authenticated
+                ? "TPS (5 %) et TVQ (9,975 %) appliquées automatiquement selon votre profil"
+                : "3 factures gratuites · Calculs TPS/TVQ automatiques et Virement Interac"}
             </small>
           </div>
         </div>

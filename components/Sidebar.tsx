@@ -13,6 +13,11 @@ const links = [
     "M4 19h16 M7 16v-5 M12 16V7 M17 16v-8",
   ],
   [
+    "calculator",
+    "Calculateur TPS/TVQ",
+    "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z M7 7h10v3H7V7Z M8 14h2 M12 14h2 M8 18h2 M12 18h2",
+  ],
+  [
     "company",
     "Mon entreprise",
     "M4 21V7l8-4 8 4v14 M2 21h20 M9 21v-6h6v6 M8 9h1 M15 9h1 M8 12h1 M15 12h1",

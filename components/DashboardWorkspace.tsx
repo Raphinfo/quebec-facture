@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import QuotesSection from "./QuotesSection";
 import TaxReportSection from "./TaxReportSection";
+import TaxCalculator from "./TaxCalculator";
 import ThemeToggle from "./ThemeToggle";
 import ClientDrawer, { type CreatedClient } from "./ClientDrawer";
 import CompanyLogoUpload from "./CompanyLogoUpload";
@@ -327,6 +328,7 @@ export default function DashboardWorkspace() {
     billing: "Votre activité, en clair.",
     quotes: "Des projets qui prennent forme.",
     reports: "Vos taxes et revenus, en un coup d’œil.",
+    calculator: "Calculateur rapide TPS / TVQ.",
     company: "Une entreprise qui vous ressemble.",
     expenses: "Chaque dépense à sa place.",
     subscription: "Un forfait à votre rythme.",
@@ -891,6 +893,7 @@ export default function DashboardWorkspace() {
           {tab === "reports" && (
             <TaxReportSection invoices={invoices} expenses={expenses} />
           )}
+          {tab === "calculator" && <TaxCalculator authenticated />}
           {["company", "profile", "settings"].includes(tab) && (
             <section className="panel profile-panel">
               <span className="eyebrow">L’IDENTITÉ DE VOS DOCUMENTS</span>
