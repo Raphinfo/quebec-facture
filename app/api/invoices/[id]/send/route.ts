@@ -32,7 +32,7 @@ export async function POST(_: Request, { params }: Ctx) {
     await rateLimit(`invoice-email:${userId}`, 25, 3600);
 
     const [user] =
-      await sql`SELECT "emailVerifiedAt","interacEmail" FROM "User" WHERE id=${userId}`;
+      await sql`SELECT email,"emailVerifiedAt","interacEmail" FROM "User" WHERE id=${userId}`;
     if (!user?.emailVerifiedAt) {
       throw new InputError(
         "Vérifiez votre adresse courriel dans votre espace avant d’envoyer des factures.",
@@ -101,6 +101,7 @@ export async function POST(_: Request, { params }: Ctx) {
       {
         from: process.env.RESEND_FROM_EMAIL,
         to: [inv.clientEmail],
+        replyTo: user.email,
         subject: `Facture ${inv.invoiceNumber} — ${company}`,
         html: `
         <div style="font-family:Inter,Arial,sans-serif;max-width:680px;margin:auto;color:#111827;line-height:1.6">

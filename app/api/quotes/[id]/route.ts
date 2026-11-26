@@ -57,7 +57,7 @@ export async function POST(_: Request, { params }: Ctx) {
       );
     await rateLimit(`quote-email:${userId}`, 20, 3600);
     const [user] =
-      await sql`SELECT "emailVerifiedAt" FROM "User" WHERE id=${userId}`;
+      await sql`SELECT email,"emailVerifiedAt" FROM "User" WHERE id=${userId}`;
     if (!user.emailVerifiedAt)
       throw new InputError(
         "Vérifiez votre adresse courriel dans votre espace avant d’envoyer des documents.",
@@ -116,6 +116,7 @@ export async function POST(_: Request, { params }: Ctx) {
       {
         from: process.env.RESEND_FROM_EMAIL!,
         to: [q.clientEmail],
+        replyTo: user.email,
         subject: `Soumission ${q.quoteNumber} — ${company}`,
         html: `
         <div style="font-family:Arial,sans-serif;max-width:700px;margin:auto;color:#222">
