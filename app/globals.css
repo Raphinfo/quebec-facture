@@ -2576,10 +2576,18 @@ textarea:user-invalid,
   transition: border-color 0.15s, background 0.15s;
 }
 
-.chip-button:hover {
+.chip-button:hover,
+.chip-button.active {
   border-color: var(--primary);
   background: var(--accent-soft);
   color: var(--primary);
+}
+
+.status-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
 }
 
 .calc-toggles {

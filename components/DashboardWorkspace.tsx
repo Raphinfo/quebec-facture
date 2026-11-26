@@ -118,7 +118,8 @@ export default function DashboardWorkspace() {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [message, setMessage] = useState(""),
-    [query, setQuery] = useState("");
+    [query, setQuery] = useState(""),
+    [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "PENDING" | "PAID" | "CANCELED">("ALL");
   const [lines, setLines] = useState<Line[]>([blankLine()]),
     [clientId, setClientId] = useState("");
   const [savedLogo, setSavedLogo] = useState("");
@@ -731,7 +732,29 @@ export default function DashboardWorkspace() {
                     </p>
                   </div>
                 ) : (
-                  <div className="table-scroll">
+                  <>
+                    <div className="status-filters" role="group" aria-label="Filtrer par statut">
+                      {(
+                        [
+                          ["ALL", `Toutes (${invoices.length})`],
+                          ["ACTIVE", `Actives (${invoices.filter((i) => i.status !== "CANCELED").length})`],
+                          ["PENDING", `En attente (${invoices.filter((i) => i.status === "PENDING").length})`],
+                          ["PAID", `Payées (${invoices.filter((i) => i.status === "PAID").length})`],
+                          ["CANCELED", `Annulées (${invoices.filter((i) => i.status === "CANCELED").length})`],
+                        ] as const
+                      ).map(([id, label]) => (
+                        <button
+                          key={id}
+                          type="button"
+                          className={`chip-button ${statusFilter === id ? "active" : ""}`}
+                          aria-pressed={statusFilter === id}
+                          onClick={() => setStatusFilter(id)}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="table-scroll">
                     <table className="data-table">
                       <thead>
                         <tr>
@@ -744,11 +767,15 @@ export default function DashboardWorkspace() {
                       </thead>
                       <tbody>
                         {invoices
-                          .filter((i) =>
-                            `${i.invoiceNumber} ${i.clientName}`
+                          .filter((i) => {
+                            if (statusFilter === "ACTIVE" && i.status === "CANCELED") return false;
+                            if (statusFilter === "PENDING" && i.status !== "PENDING") return false;
+                            if (statusFilter === "PAID" && i.status !== "PAID") return false;
+                            if (statusFilter === "CANCELED" && i.status !== "CANCELED") return false;
+                            return `${i.invoiceNumber} ${i.clientName}`
                               .toLowerCase()
-                              .includes(query.toLowerCase()),
-                          )
+                              .includes(query.toLowerCase());
+                          })
                           .map((i) => {
                             const dueIso = i.dueDate
                               ? String(i.dueDate).slice(0, 10)
@@ -850,7 +877,8 @@ export default function DashboardWorkspace() {
                           })}
                       </tbody>
                     </table>
-                  </div>
+                    </div>
+                  </>
                 )}
               </section>
             </>
