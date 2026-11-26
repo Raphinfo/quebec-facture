@@ -109,3 +109,43 @@ test("les documents échappent le HTML et refusent les logos actifs ou distants"
     "data:image/png;base64,YQ==",
   );
 });
+
+const {
+  default: { generateDocumentPdf },
+} = await import(
+  pathToFileURL(path.join(process.env.QF_TEST_BUILD, "pdf.js")).href
+);
+
+test("le générateur PDF produit un document valide avec accents, Interac et caractères spéciaux", async () => {
+  const bytes = await generateDocumentPdf({
+    kind: "Facture",
+    number: "FAC-2026-000001",
+    date: "2026-11-26",
+    dueDate: "2026-12-26",
+    status: "PENDING",
+    companyName: "Atelier Québec Inc.",
+    companyAddress: "123 rue Saint-Jean\nQuébec (QC)",
+    tpsNumber: "123456789RT0001",
+    tvqNumber: "1234567890TQ0001",
+    interacEmail: "paiements@atelierquebec.ca",
+    clientName: "François Côté — 🚀",
+    clientCompany: "Boulangerie L’Épi d’Or",
+    clientEmail: "francois@example.test",
+    items: [
+      {
+        description: "Développement web & intégration TPS/TVQ",
+        quantity: 2,
+        unitPrice: 600,
+        amount: 1200,
+      },
+    ],
+    subtotal: 1200,
+    tps: 60,
+    tvq: 119.7,
+    total: 1379.7,
+    notes: "Merci de votre confiance…",
+  });
+  assert.ok(bytes instanceof Uint8Array);
+  assert.ok(bytes.length > 1000);
+  assert.equal(Buffer.from(bytes.slice(0, 5)).toString("ascii"), "%PDF-");
+});

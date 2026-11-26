@@ -10,6 +10,7 @@ try {
       "node_modules/typescript/bin/tsc",
       "lib/validation.ts",
       "lib/money.ts",
+      "lib/pdf.ts",
       "--outDir",
       output,
       "--module",
@@ -32,7 +33,14 @@ try {
         "tests/clients-route.test.mjs",
         "tests/export-route.test.mjs",
       ],
-      { stdio: "inherit", env: { ...process.env, QF_TEST_BUILD: output } },
+      {
+        stdio: "inherit",
+        env: {
+          ...process.env,
+          QF_TEST_BUILD: output,
+          NODE_PATH: join(process.cwd(), "node_modules"),
+        },
+      },
     );
     process.exitCode = result.status ?? 1;
   }

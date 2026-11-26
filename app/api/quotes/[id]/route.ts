@@ -10,6 +10,7 @@ import {
 } from "@/lib/validation";
 import { calculateDocument } from "@/lib/money";
 import { rateLimit } from "@/lib/rate-limit";
+import { generateDocumentPdf } from "@/lib/pdf";
 import { Resend } from "resend";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -69,7 +70,7 @@ export async function POST(_: Request, { params }: Ctx) {
       "clientSnapshot"=jsonb_build_object('name',c.name,'email',c.email,'company',c.company,'address',c.address)
       FROM "User" u,"Client" c WHERE q.id=${id} AND q."userId"=${userId} AND u.id=q."userId" AND c.id=q."clientId" AND c."userId"=q."userId" AND NULLIF(TRIM(u."companyName"),'') IS NOT NULL AND NULLIF(TRIM(u."companyAddress"),'') IS NOT NULL AND q.status='DRAFT' AND NULLIF(c.email,'') IS NOT NULL AND (q."validUntil" IS NULL OR q."validUntil">=(NOW() AT TIME ZONE 'America/Toronto')::date)`;
     const [q] =
-      await sql`SELECT *,"clientSnapshot"->>'name' AS "clientName", "clientSnapshot"->>'email' AS "clientEmail", "issuerSnapshot"->>'companyName' AS "companyName" FROM "Quote" WHERE id=${id} AND "userId"=${userId}`;
+      await sql`SELECT *,"clientSnapshot"->>'name' AS "clientName", "clientSnapshot"->>'company' AS "clientCompany", "clientSnapshot"->>'address' AS "clientAddress", "clientSnapshot"->>'email' AS "clientEmail", "issuerSnapshot"->>'companyName' AS "companyName", "issuerSnapshot"->>'companyAddress' AS "companyAddress", "issuerSnapshot"->>'tpsNumber' AS "tpsNumber", "issuerSnapshot"->>'tvqNumber' AS "tvqNumber", "issuerSnapshot"->>'companyLogo' AS "companyLogo" FROM "Quote" WHERE id=${id} AND "userId"=${userId}`;
     if (!q) throw new InputError("Soumission introuvable.", 404);
     if (q.status === "SENT")
       return NextResponse.json({
@@ -110,6 +111,28 @@ export async function POST(_: Request, { params }: Ctx) {
       : "Aucune";
 
     const company = q.companyName || "Québec Facture";
+    const pdfBytes = await generateDocumentPdf({
+      kind: "Soumission",
+      number: q.quoteNumber,
+      date: new Date(q.createdAt).toLocaleDateString("fr-CA"),
+      dueDate: q.validUntil ? valid : undefined,
+      companyName: company,
+      companyAddress: q.companyAddress || undefined,
+      tpsNumber: q.tpsNumber || undefined,
+      tvqNumber: q.tvqNumber || undefined,
+      companyLogo: q.companyLogo || undefined,
+      clientName: q.clientName,
+      clientCompany: q.clientCompany || undefined,
+      clientAddress: q.clientAddress || undefined,
+      clientEmail: q.clientEmail || undefined,
+      items,
+      subtotal: Number(q.amountSubtotal),
+      tps: Number(q.tpsAmount),
+      tvq: Number(q.tvqAmount),
+      total: Number(q.amountTotal),
+      notes: q.notes || undefined,
+    });
+    const safeFilename = String(q.quoteNumber).replace(/[^A-Za-z0-9_-]/g, "_");
     const resend = new Resend(process.env.RESEND_API_KEY);
 
     const { data, error } = await resend.emails.send(
@@ -118,6 +141,12 @@ export async function POST(_: Request, { params }: Ctx) {
         to: [q.clientEmail],
         replyTo: user.email,
         subject: `Soumission ${q.quoteNumber} — ${company}`,
+        attachments: [
+          {
+            filename: `${safeFilename}.pdf`,
+            content: Buffer.from(pdfBytes),
+          },
+        ],
         html: `
         <div style="font-family:Arial,sans-serif;max-width:700px;margin:auto;color:#222">
           <h2>${esc(company)}</h2>

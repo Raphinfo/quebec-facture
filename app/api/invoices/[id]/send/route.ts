@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/session";
 import { apiError } from "@/lib/http";
 import { InputError, escapeHtml } from "@/lib/validation";
 import { rateLimit } from "@/lib/rate-limit";
+import { generateDocumentPdf } from "@/lib/pdf";
 import { Resend } from "resend";
 
 export const dynamic = "force-dynamic";
@@ -49,11 +50,13 @@ export async function POST(_: Request, { params }: Ctx) {
         COALESCE(i.items::jsonb, i."itemsJson"::jsonb) AS items,
         COALESCE(i."clientSnapshot"->>'name', i."clientName") AS "clientName",
         COALESCE(i."clientSnapshot"->>'company', i."clientCompany") AS "clientCompany",
+        COALESCE(NULLIF(i."clientSnapshot"->>'address',''), NULLIF(i."clientAddress",''), NULLIF(c.address,'')) AS "clientAddress",
         COALESCE(NULLIF(i."clientSnapshot"->>'email',''), NULLIF(i."clientEmail",''), NULLIF(c.email,'')) AS "clientEmail",
         i."issuerSnapshot"->>'companyName' AS "companyName",
         i."issuerSnapshot"->>'companyAddress' AS "companyAddress",
         i."issuerSnapshot"->>'tpsNumber' AS "tpsNumber",
         i."issuerSnapshot"->>'tvqNumber' AS "tvqNumber",
+        i."issuerSnapshot"->>'companyLogo' AS "companyLogo",
         COALESCE(NULLIF(i."issuerSnapshot"->>'interacEmail',''), NULLIF(${user.interacEmail || ""},'')) AS "interacEmail"
       FROM "Invoice" i
       LEFT JOIN "Client" c ON c.id = i."clientId" AND c."userId" = i."userId"
@@ -72,6 +75,35 @@ export async function POST(_: Request, { params }: Ctx) {
     }
 
     const items = Array.isArray(inv.items) ? inv.items : [];
+    const issuedDate = new Date(inv.createdAt).toLocaleDateString("fr-CA");
+    const dueLabel = inv.dueDate
+      ? new Date(inv.dueDate).toLocaleDateString("fr-CA", { timeZone: "UTC" })
+      : undefined;
+    const company = inv.companyName || "Québec Facture";
+
+    const pdfBytes = await generateDocumentPdf({
+      kind: "Facture",
+      number: inv.invoiceNumber,
+      date: issuedDate,
+      dueDate: dueLabel,
+      status: inv.status,
+      companyName: company,
+      companyAddress: inv.companyAddress || undefined,
+      tpsNumber: inv.tpsNumber || undefined,
+      tvqNumber: inv.tvqNumber || undefined,
+      companyLogo: inv.companyLogo || undefined,
+      interacEmail: inv.interacEmail || undefined,
+      clientName: inv.clientName,
+      clientCompany: inv.clientCompany || undefined,
+      clientAddress: inv.clientAddress || undefined,
+      clientEmail: inv.clientEmail,
+      items,
+      subtotal: Number(inv.amountSubtotal),
+      tps: Number(inv.tpsAmount),
+      tvq: Number(inv.tvqAmount),
+      total: Number(inv.amountTotal),
+    });
+
     const lines = items
       .map(
         (i: {
@@ -89,13 +121,9 @@ export async function POST(_: Request, { params }: Ctx) {
       )
       .join("");
 
-    const issuedDate = new Date(inv.createdAt).toLocaleDateString("fr-CA");
-    const dueLabel = inv.dueDate
-      ? new Date(inv.dueDate).toLocaleDateString("fr-CA", { timeZone: "UTC" })
-      : null;
-    const company = inv.companyName || "Québec Facture";
     const resend = new Resend(process.env.RESEND_API_KEY);
     const minuteBucket = Math.floor(Date.now() / 60000);
+    const safeFilename = String(inv.invoiceNumber).replace(/[^A-Za-z0-9_-]/g, "_");
 
     const { data, error } = await resend.emails.send(
       {
@@ -103,18 +131,22 @@ export async function POST(_: Request, { params }: Ctx) {
         to: [inv.clientEmail],
         replyTo: user.email,
         subject: `Facture ${inv.invoiceNumber} — ${company}`,
+        attachments: [
+          {
+            filename: `${safeFilename}.pdf`,
+            content: Buffer.from(pdfBytes),
+          },
+        ],
         html: `
         <div style="font-family:Inter,Arial,sans-serif;max-width:680px;margin:auto;color:#111827;line-height:1.6">
           <div style="border-bottom:2px solid #1d4ed8;padding-bottom:16px;margin-bottom:24px">
             <h2 style="margin:0;color:#111827">${escapeHtml(company)}</h2>
             ${inv.companyAddress ? `<p style="margin:4px 0 0;color:#4b5563;font-size:13px">${escapeHtml(inv.companyAddress)}</p>` : ""}
-            ${inv.tpsNumber ? `<p style="margin:2px 0 0;color:#6b7280;font-size:12px">TPS : ${escapeHtml(inv.tpsNumber)}</p>` : ""}
-            ${inv.tvqNumber ? `<p style="margin:2px 0 0;color:#6b7280;font-size:12px">TVQ : ${escapeHtml(inv.tvqNumber)}</p>` : ""}
           </div>
           <p>Bonjour ${escapeHtml(inv.clientName)},</p>
-          <p>Veuillez trouver ci-dessous votre facture <strong>${escapeHtml(inv.invoiceNumber)}</strong> émise le ${issuedDate}${dueLabel ? ` (échéance : <strong>${dueLabel}</strong>)` : ""}.</p>
+          <p>Veuillez trouver ci-joint en format <strong>PDF</strong> votre facture <strong>${escapeHtml(inv.invoiceNumber)}</strong> émise le ${issuedDate}${dueLabel ? ` (échéance : <strong>${dueLabel}</strong>)` : ""}, ainsi que son récapitulatif ci-dessous :</p>
 
-          <table style="width:100%;border-collapse:collapse;margin:24px 0;font-size:14px">
+          <table style="width:100%;border-collapse:collapse;margin:20px 0;font-size:14px">
             <thead>
               <tr style="background:#f9fafb">
                 <th style="padding:10px 8px;text-align:left;border-bottom:2px solid #e5e7eb">Description</th>
@@ -125,7 +157,7 @@ export async function POST(_: Request, { params }: Ctx) {
             <tbody>${lines}</tbody>
           </table>
 
-          <div style="text-align:right;margin-bottom:24px">
+          <div style="text-align:right;margin-bottom:20px">
             <p style="margin:4px 0;color:#4b5563">Sous-total : ${money(inv.amountSubtotal)}</p>
             <p style="margin:4px 0;color:#4b5563">TPS : ${money(inv.tpsAmount)}</p>
             <p style="margin:4px 0;color:#4b5563">TVQ : ${money(inv.tvqAmount)}</p>
@@ -162,7 +194,7 @@ export async function POST(_: Request, { params }: Ctx) {
       await sql`UPDATE "Invoice" SET "sentAt"=NOW(),"emailId"=${data?.id || null},"updatedAt"=NOW() WHERE id=${id} AND "userId"=${userId} RETURNING "sentAt"`;
 
     return NextResponse.json({
-      message: `Facture envoyée à ${inv.clientEmail}.`,
+      message: `Facture PDF envoyée à ${inv.clientEmail}.`,
       emailId: data?.id,
       sentAt: updated?.sentAt,
     });

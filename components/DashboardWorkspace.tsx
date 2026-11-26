@@ -796,6 +796,12 @@ export default function DashboardWorkspace() {
                                 </td>
                                 <td>
                                   <div className="table-actions">
+                                    <a
+                                      href={`/api/invoices/${i.id}/pdf`}
+                                      className="button secondary small-button"
+                                    >
+                                      PDF ↓
+                                    </a>
                                     <button
                                       type="button"
                                       className="button secondary small-button"
