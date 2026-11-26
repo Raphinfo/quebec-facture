@@ -1,146 +1,181 @@
 datasource db {
   provider = "postgresql"
 }
-
 generator client {
   provider = "prisma-client-js"
 }
-
-// --- ÉNUMÉRATIONS ---
-
 enum SubscriptionStatus {
-  TRIALING // Essai gratuit en cours
-  ACTIVE // Abonnement payé et actif
-  PAST_DUE // Échec de paiement / renouvellement en retard
-  CANCELED // Abonnement annulé
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
 }
-
 enum InvoiceStatus {
-  PENDING // En attente de paiement
-  PAID // Facture acquittée
-  CANCELED // Facture annulée
+  PENDING
+  PAID
+  CANCELED
 }
-
 enum QuoteStatus {
-  DRAFT // Brouillon
-  SENT // Envoyée au client
-  ACCEPTED // Acceptée par le client
-  REJECTED // Refusée par le client
-  EXPIRED // Date de validité dépassée
-  CONVERTED // Convertie en facture
+  DRAFT
+  SENDING
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  CONVERTED
 }
-
-// --- MODÈLES ---
-
 model User {
-  id             String  @id @default(uuid())
-  email          String  @unique
-  password       String
-  companyName    String?
-  neq            String?
-  tpsNumber      String?
-  tvqNumber      String?
-  address        String?
+  id String @id @default(uuid())
+  email String @unique
+  password String
+  companyName String?
+  neq String?
+  tpsNumber String?
+  tvqNumber String?
+  address String?
   companyAddress String?
-
-  // --- RELATIONS ---
-  invoices Invoice[]
-  clients  Client[]
-  expenses Expense[]
-  quotes   Quote[]
-
+  companyLogo String?
+  interacEmail String?
+  paymentTermsDays Int @default(30)
+  emailVerifiedAt DateTime?
   createdAt DateTime @default(now())
-
-  // --- ABONNEMENT ---
   subscriptionStatus SubscriptionStatus @default(ACTIVE)
-  plan               String             @default("FREE")
-
-  // --- STRIPE ---
+  plan String @default("FREE")
   stripeCustomerId String? @unique
-  stripeSubId      String? @unique
+  stripeSubId String? @unique
+  invoiceSequence Int @default(0)
+  invoicesIssued Int @default(0)
+  subscriptionValidUntil DateTime? @db.Timestamptz(3)
+  quoteSequence Int @default(0)
+  trialUsed Boolean @default(false)
+  checkoutSessionId String?
+  checkoutExpiresAt DateTime?
+  invoices Invoice[]
+  clients Client[]
+  expenses Expense[]
+  quotes Quote[]
+  sessions Session[]
+  passwordResets PasswordReset[]
+  verificationTokens VerificationToken[]
+  checkoutAttempt CheckoutAttempt?
 }
-
 model Invoice {
-  id             String        @id @default(uuid())
-  invoiceNumber  String
-  amountSubtotal Decimal       @db.Decimal(10, 2)
-  tpsAmount      Decimal       @db.Decimal(10, 2)
-  tvqAmount      Decimal       @db.Decimal(10, 2)
-  amountTotal    Decimal       @db.Decimal(10, 2)
-  items          Json
-  status         InvoiceStatus @default(PENDING)
-  createdAt      DateTime      @default(now())
-
+  id String @id @default(uuid())
+  invoiceNumber String @map("number")
+  clientName String
+  clientCompany String?
+  clientEmail String?
+  clientAddress String?
+  itemsJson String
+  // Colonnes historiques conservées pour une migration sans perte.
+  sousTotal Float
+  totalTPS Float
+  totalTVQ Float
+  totalGlobal Float
+  amountSubtotal Decimal? @db.Decimal(10,2)
+  tpsAmount Decimal? @db.Decimal(10,2)
+  tvqAmount Decimal? @db.Decimal(10,2)
+  amountTotal Decimal? @db.Decimal(10,2)
+  items Json?
+  status InvoiceStatus @default(PENDING)
+  dueDate DateTime? @db.Date
+  sentAt DateTime?
+  emailId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+  issuerSnapshot Json?
+  clientSnapshot Json?
+  sourceQuoteId String? @unique
+  requestKey String?
   userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  clientId Int
-  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  clientId Int?
+  client Client? @relation(fields:[clientId],references:[id],onDelete:Restrict)
+  @@unique([userId,invoiceNumber],map:"Invoice_userId_number_key")
+  @@unique([userId,requestKey])
+  @@index([userId,createdAt])
 }
-
 model Quote {
-  id          String @id @default(uuid())
+  id String @id @default(uuid())
   quoteNumber String
-
-  amountSubtotal Decimal @db.Decimal(10, 2)
-  tpsAmount      Decimal @db.Decimal(10, 2)
-  tvqAmount      Decimal @db.Decimal(10, 2)
-  amountTotal    Decimal @db.Decimal(10, 2)
-
-  // Lignes de la soumission
-  // Même principe que Invoice.items
+  amountSubtotal Decimal @db.Decimal(10,2)
+  tpsAmount Decimal @db.Decimal(10,2)
+  tvqAmount Decimal @db.Decimal(10,2)
+  amountTotal Decimal @db.Decimal(10,2)
   items Json
-
   status QuoteStatus @default(DRAFT)
-
-  // Date jusqu'à laquelle la soumission est valide
   validUntil DateTime?
-
-  // Notes ou conditions particulières
   notes String?
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  // --- UTILISATEUR ---
+  issuerSnapshot Json?
+  clientSnapshot Json?
+  emailId String?
+  version Int @default(1)
   userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // --- CLIENT ---
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
   clientId Int
-  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
-
-  // Un entrepreneur ne peut pas avoir deux soumissions
-  // avec le même numéro.
-  @@unique([userId, quoteNumber])
+  client Client @relation(fields:[clientId],references:[id],onDelete:Restrict)
+  @@unique([userId,quoteNumber])
+  @@index([userId,createdAt])
 }
-
 model Client {
   id Int @id @default(autoincrement())
-  name        String
-  companyName String?
-  neq         String?
-  address     String?
-  email       String?
-  phone       String?
-
+  name String
+  companyName String? @map("company")
+  neq String?
+  address String?
+  email String?
+  phone String?
   userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // --- RELATIONS ---
-  invoices Invoice[]
-  quotes   Quote[]
-
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
   createdAt DateTime @default(now())
+  invoices Invoice[]
+  quotes Quote[]
+  @@index([userId])
 }
-
 model Expense {
-  id          String   @id @default(uuid())
+  id String @id @default(uuid())
   description String
-  amount      Decimal  @db.Decimal(10, 2)
-  category    String
-  createdAt   DateTime @default(now())
-
+  amount Decimal @db.Decimal(10,2)
+  category String
+  createdAt DateTime @default(now())
   userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  @@index([userId,createdAt])
+}
+model Session {
+  tokenHash String @id
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  expiresAt DateTime @db.Timestamptz(3)
+  @@index([userId])
+  @@index([expiresAt])
+}
+model RateLimit {
+  key String @id
+  count Int
+  expiresAt DateTime @db.Timestamptz(3)
+  @@index([expiresAt])
+}
+model PasswordReset {
+  tokenHash String @id
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  expiresAt DateTime @db.Timestamptz(3)
+  @@index([userId])
+}
+model VerificationToken {
+  tokenHash String @id
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  expiresAt DateTime @db.Timestamptz(3)
+  @@index([userId])
+}
+model CheckoutAttempt {
+  userId String @id
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  id String
+  trial Boolean
+  expiresAt DateTime @db.Timestamptz(3)
 }

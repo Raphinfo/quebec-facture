@@ -1,227 +1,95 @@
-import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
-import { neon } from "@neondatabase/serverless";
-import { cookies } from "next/headers";
-
-export const dynamic = "force-dynamic";
-
-function getDb() {
-  const dbUrl = process.env.DATABASE_URL;
-
-  if (!dbUrl) {
-    throw new Error("DATABASE_URL est manquante.");
-  }
-
-  return neon(dbUrl);
-}
-
-function getStripe() {
-  const stripeKey = process.env.STRIPE_SECRET_KEY;
-
-  if (!stripeKey) {
-    throw new Error("STRIPE_SECRET_KEY est manquante.");
-  }
-
-  return new Stripe(stripeKey);
-}
-
-export async function POST(req: NextRequest) {
+import { NextResponse } from "next/server";
+import { getDb } from "@/lib/db";
+import { requireUser } from "@/lib/session";
+import { apiError, readJson } from "@/lib/http";
+import { InputError } from "@/lib/validation";
+import { rateLimit } from "@/lib/rate-limit";
+import { getStripe, appOrigin } from "@/lib/stripe";
+export async function POST(request: Request) {
   try {
-    // ============================================================
-    // 1. VÉRIFIER LA SESSION UTILISATEUR
-    // ============================================================
-    const cookieStore = await cookies();
-    const userId = cookieStore.get("user_session")?.value;
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: "Non autorisé." },
-        { status: 401 }
-      );
-    }
-
-    // ============================================================
-    // 2. LIRE LE CHOIX : ESSAI OU PRO IMMÉDIAT
-    // ============================================================
-    let body: { trial?: boolean };
-
-    try {
-      body = await req.json();
-    } catch {
-      return NextResponse.json(
-        { error: "Requête invalide." },
-        { status: 400 }
-      );
-    }
-
+    const userId = await requireUser(),
+      body = await readJson(request, 4096),
+      sql = getDb();
+    await rateLimit(`checkout:${userId}`, 10, 3600);
     const trial = body.trial === true;
-
-    console.log(
-      trial
-        ? "🎁 Checkout demandé avec essai gratuit de 3 jours."
-        : "💳 Checkout PRO demandé sans essai."
-    );
-
-    // ============================================================
-    // 3. VÉRIFIER LE PRICE ID
-    // ============================================================
-    const priceId = process.env.STRIPE_PRICE_ID;
-
-    if (!priceId) {
-      throw new Error("STRIPE_PRICE_ID est manquante.");
-    }
-
-    const sql = getDb();
-    const stripe = getStripe();
-
-    // ============================================================
-    // 4. RÉCUPÉRER L'UTILISATEUR
-    // ============================================================
-    const users = await sql`
-      SELECT
-        email,
-        "stripeCustomerId",
-        plan,
-        "subscriptionStatus",
-        "stripeSubId"
-      FROM "User"
-      WHERE id = ${userId}
-      LIMIT 1
-    `;
-
-    const user = users[0];
-
-    if (!user) {
-      return NextResponse.json(
-        { error: "Utilisateur introuvable." },
-        { status: 404 }
+    const [user] = await sql`SELECT * FROM "User" WHERE id=${userId}`;
+    if (user.stripeSubId)
+      throw new InputError(
+        "Gérez votre abonnement existant dans le portail de facturation.",
+        409,
       );
-    }
-
-    // ============================================================
-    // 5. ÉVITER DE CRÉER PLUSIEURS ABONNEMENTS PRO
-    // ============================================================
+    if (trial && user.trialUsed)
+      throw new InputError("L’essai a déjà été utilisé pour ce compte.", 409);
+    if (!process.env.STRIPE_PRICE_ID)
+      throw new InputError(
+        "Les abonnements ne sont pas encore configurés.",
+        503,
+      );
+    const stripe = getStripe(),
+      origin = appOrigin();
+    const price = await stripe.prices.retrieve(process.env.STRIPE_PRICE_ID);
     if (
-      user.stripeSubId &&
-      (
-        user.subscriptionStatus === "ACTIVE" ||
-        user.subscriptionStatus === "TRIALING"
-      ) &&
-      user.plan === "PRO"
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "Vous avez déjà un abonnement Professionnel actif ou en période d'essai.",
-        },
-        { status: 409 }
-      );
-    }
-
-    // ============================================================
-    // 6. CONFIGURATION STRIPE CHECKOUT
-    // ============================================================
-    const sessionConfig: Stripe.Checkout.SessionCreateParams = {
-      payment_method_types: ["card"],
-
-      line_items: [
-        {
-          price: priceId,
-          quantity: 1,
-        },
-      ],
-
-      mode: "subscription",
-
-      success_url:
-        `${req.nextUrl.origin}/dashboard?success=true`,
-
-      cancel_url:
-        `${req.nextUrl.origin}/choose-plan?canceled=true`,
-
-      // Permet de retrouver plus facilement l'utilisateur
-      // dans Stripe.
-      client_reference_id: userId,
-
-      metadata: {
-        userId,
-        checkoutType: trial ? "TRIAL" : "PRO",
-      },
-
-      subscription_data: {
-        metadata: {
-          userId,
-          checkoutType: trial ? "TRIAL" : "PRO",
-        },
-      },
-    };
-
-    // ============================================================
-    // 7. AJOUTER LES 3 JOURS UNIQUEMENT POUR L'ESSAI
-    // ============================================================
-    if (trial) {
-      sessionConfig.subscription_data = {
-        ...sessionConfig.subscription_data,
-        trial_period_days: 3,
-      };
-    }
-
-   
-    // ============================================================
-    // 8. CLIENT STRIPE
-    // ============================================================
-
+      !price.active ||
+      price.currency !== "cad" ||
+      price.unit_amount !== 1500 ||
+      price.recurring?.interval !== "month" ||
+      price.recurring.interval_count !== 1
+    )
+      throw new InputError("Le forfait est momentanément indisponible.", 503);
     let customerId = user.stripeCustomerId;
-
     if (!customerId) {
-      const customer = await stripe.customers.create({
-        email: user.email,
-      });
-
+      const customer = await stripe.customers.create(
+        { email: user.email, metadata: { userId } },
+        { idempotencyKey: `customer-${userId}` },
+      );
       customerId = customer.id;
-
-      await sql`
-        UPDATE "User"
-        SET "stripeCustomerId" = ${customerId}
-        WHERE id = ${userId}
-      `;
+      await sql`UPDATE "User" SET "stripeCustomerId"=${customerId} WHERE id=${userId} AND "stripeCustomerId" IS NULL`;
     }
-
-    sessionConfig.customer = customerId;
-
-
-    // ============================================================
-    // 9. CRÉER CHECKOUT
-    // ============================================================
-    const checkoutSession =
-      await stripe.checkout.sessions.create(sessionConfig);
-
-    if (!checkoutSession.url) {
-      throw new Error(
-        "Stripe n'a retourné aucune URL de Checkout."
+    // Évite un second abonnement si le webhook du premier paiement est encore en attente.
+    const existing = await stripe.subscriptions.list({
+      customer: customerId,
+      status: "all",
+      limit: 100,
+    });
+    if (
+      existing.data.some(
+        (subscription) =>
+          !["canceled", "incomplete_expired"].includes(subscription.status),
+      )
+    ) {
+      throw new InputError(
+        "Un abonnement existe déjà chez Stripe. Utilisez le portail de facturation.",
+        409,
       );
     }
-
-    return NextResponse.json(
+    await sql`INSERT INTO "CheckoutAttempt" ("userId",id,trial,"expiresAt") VALUES (${userId},${crypto.randomUUID()},${trial},NOW()+INTERVAL '31 minutes')
+      ON CONFLICT ("userId") DO UPDATE SET id=EXCLUDED.id,trial=EXCLUDED.trial,"expiresAt"=EXCLUDED."expiresAt" WHERE "CheckoutAttempt"."expiresAt"<NOW()`;
+    const [attempt] =
+      await sql`SELECT * FROM "CheckoutAttempt" WHERE "userId"=${userId}`;
+    if (attempt.trial !== trial)
+      throw new InputError(
+        "Une autre offre est déjà en cours de paiement. Réessayez dans 31 minutes.",
+        409,
+      );
+    const session = await stripe.checkout.sessions.create(
       {
-        url: checkoutSession.url,
-        checkoutType: trial ? "TRIAL" : "PRO",
+        customer: customerId,
+        mode: "subscription",
+        line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
+        client_reference_id: userId,
+        metadata: { userId },
+        subscription_data: {
+          metadata: { userId },
+          ...(trial ? { trial_period_days: 3 } : {}),
+        },
+        success_url: `${origin}/dashboard?tab=subscription&success=true`,
+        cancel_url: `${origin}/choose-plan?canceled=true`,
+        expires_at: Math.floor(new Date(attempt.expiresAt).getTime() / 1000),
       },
-      { status: 200 }
+      { idempotencyKey: `checkout-${attempt.id}` },
     );
-
-  } catch (error: any) {
-    console.error(
-      "❌ Erreur Stripe Checkout :",
-      error.message
-    );
-
-    return NextResponse.json(
-      {
-        error:
-          "Erreur lors de la création de la session Checkout.",
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ url: session.url });
+  } catch (error) {
+    return apiError(error);
   }
 }

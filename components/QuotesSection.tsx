@@ -1,1205 +1,558 @@
 "use client";
-
-import { useEffect, useMemo, useState } from "react";
-
-type Client = {
-  id: number;
-  name: string;
-  email?: string | null;
-};
-
-type QuoteItem = {
+import { useCallback, useEffect, useState } from "react";
+import { calculateDocument } from "@/lib/money";
+import { printDocument } from "@/lib/print";
+type Item = {
   description: string;
   quantity: number;
   unitPrice: number;
+  amount?: number;
+  isTpsApplicable?: boolean;
+  isTvqApplicable?: boolean;
 };
-
+type Profile = {
+  companyName?: string;
+  companyAddress?: string;
+  tpsNumber?: string;
+  tvqNumber?: string;
+  companyLogo?: string;
+};
 type Quote = {
   id: string;
   quoteNumber: string;
-  amountSubtotal: string | number;
-  tpsAmount: string | number;
-  tvqAmount: string | number;
-  amountTotal: string | number;
-  status: string;
-  validUntil?: string | null;
-  notes?: string | null;
-  createdAt: string;
   clientId: number;
   clientName: string;
-  clientEmail?: string | null;
-  items: QuoteItem[];
+  clientEmail: string;
+  items: Item[];
+  status: string;
+  validUntil: string | null;
+  notes: string;
+  createdAt: string;
+  version: number;
+  amountSubtotal: number;
+  tpsAmount: number;
+  tvqAmount: number;
+  amountTotal: number;
+  issuerSnapshot?: Profile | null;
 };
-type UserProfile = {
-  companyName?: string | null; companyAddress?: string | null;
-  tpsNumber?: string | null; tvqNumber?: string | null; companyLogo?: string | null;
-};
-
-const statusLabels: Record<string, string> = {
+type Client = { id: number; name: string };
+const blank = (): Item => ({
+  description: "",
+  quantity: 1,
+  unitPrice: 0,
+  isTpsApplicable: true,
+  isTvqApplicable: true,
+});
+const labels: Record<string, string> = {
   DRAFT: "Brouillon",
+  SENDING: "Envoi à confirmer",
   SENT: "Envoyée",
   ACCEPTED: "Acceptée",
   REJECTED: "Refusée",
   EXPIRED: "Expirée",
   CONVERTED: "Convertie",
 };
-
-const allowedStatusTransitions: Record<string, string[]> = {
-  DRAFT: ["DRAFT", "SENT"],
-  SENT: ["SENT", "ACCEPTED", "REJECTED", "EXPIRED"],
-  ACCEPTED: ["ACCEPTED"],
-  REJECTED: ["REJECTED"],
-  EXPIRED: ["EXPIRED"],
-  CONVERTED: ["CONVERTED"],
-};
-
+const money = (n: number) =>
+  Number(n).toLocaleString("fr-CA", { style: "currency", currency: "CAD" });
+async function api<T>(url: string, method = "GET", body?: unknown): Promise<T> {
+  const res = await fetch(url, {
+      method,
+      ...(body
+        ? {
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          }
+        : {}),
+    }),
+    d = await res.json();
+  if (!res.ok) throw new Error(d.error || "Opération impossible.");
+  return d;
+}
 export default function QuotesSection() {
-  const [clients, setClients] = useState<Client[]>([]);
-  const [quotes, setQuotes] = useState<Quote[]>([]);
-  const [userProfile, setUserProfile] = useState<UserProfile>({});
-  const [convertingId, setConvertingId] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [clearingDrafts, setClearingDrafts] = useState(false);
-  const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
-  const [editingQuoteNumber, setEditingQuoteNumber] = useState("");
-  const [status, setStatus] = useState("DRAFT");
-
-  const [clientId, setClientId] = useState("");
-  const [validUntil, setValidUntil] = useState("");
-  const [notes, setNotes] = useState("");
-
-  const [items, setItems] = useState<QuoteItem[]>([
-    {
-      description: "",
-      quantity: 1,
-      unitPrice: 0,
-    },
-  ]);
-
-  const [loading, setLoading] = useState(false);
-  const [loadingData, setLoadingData] = useState(true);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
-
-  const subtotal = useMemo(() => {
-    return items.reduce((sum, item) => {
-      return sum + Number(item.quantity || 0) * Number(item.unitPrice || 0);
-    }, 0);
-  }, [items]);
-
-  const tps = useMemo(() => subtotal * 0.05, [subtotal]);
-  const tvq = useMemo(() => subtotal * 0.09975, [subtotal]);
-  const total = useMemo(() => subtotal + tps + tvq, [subtotal, tps, tvq]);
-  const draftCount = useMemo(
-    () => quotes.filter((quote) => quote.status === "DRAFT").length,
-    [quotes]
+  const [quotes, setQuotes] = useState<Quote[]>([]),
+    [clients, setClients] = useState<Client[]>([]),
+    [profile, setProfile] = useState<Profile>({}),
+    [editing, setEditing] = useState<Quote | null>(null),
+    [clientId, setClientId] = useState(""),
+    [items, setItems] = useState<Item[]>([blank()]),
+    [notes, setNotes] = useState(""),
+    [validUntil, setValidUntil] = useState(""),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState(""),
+    [message, setMessage] = useState(""),
+    [loading, setLoading] = useState(true);
+  const load = useCallback(
+    () =>
+      Promise.all([
+        api<{ quotes: Quote[] }>("/api/quotes"),
+        api<Client[]>("/api/clients"),
+        api<Profile>("/api/profile"),
+      ])
+        .then(([q, c, p]) => {
+          setQuotes(q.quotes);
+          setClients(c);
+          setProfile(p);
+        })
+        .catch((e) =>
+          setError(e instanceof Error ? e.message : "Chargement impossible."),
+        )
+        .finally(() => setLoading(false)),
+    [],
   );
-
-  const loadQuotes = async () => {
-    const res = await fetch("/api/quotes");
-
-    if (!res.ok) {
-      throw new Error("Impossible de charger les soumissions");
-    }
-
-    const data = await res.json();
-    setQuotes(data.quotes ?? []);
-  };
-
-  const loadClients = async () => {
-    const res = await fetch("/api/clients");
-
-    if (!res.ok) {
-      throw new Error("Impossible de charger les clients");
-    }
-
-    const data = await res.json();
-
-    if (Array.isArray(data)) {
-      setClients(data);
-    } else if (Array.isArray(data.clients)) {
-      setClients(data.clients);
-    } else {
-      setClients([]);
-    }
-  };
-
-  const loadProfile = async () => {
-    const res = await fetch("/api/profile");
-    if (!res.ok) throw new Error("Impossible de charger le profil de l’entreprise");
-    setUserProfile(await res.json());
-  };
-
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        setLoadingData(true);
-        setError("");
-
-        await Promise.all([loadClients(), loadQuotes(), loadProfile()]);
-      } catch (err) {
-        console.error(err);
-        setError("Erreur lors du chargement des données.");
-      } finally {
-        setLoadingData(false);
-      }
-    };
-
-    loadData();
-  }, []);
-
-  const updateItem = (
-    index: number,
-    field: keyof QuoteItem,
-    value: string
-  ) => {
-    setItems((current) =>
-      current.map((item, itemIndex) => {
-        if (itemIndex !== index) {
-          return item;
-        }
-
-        if (field === "description") {
-          return {
-            ...item,
-            description: value,
-          };
-        }
-
-        return {
-          ...item,
-          [field]: Number(value),
-        };
-      })
-    );
-  };
-
-  const addItem = () => {
-    setItems((current) => [
-      ...current,
-      {
-        description: "",
-        quantity: 1,
-        unitPrice: 0,
-      },
-    ]);
-  };
-
-  const removeItem = (index: number) => {
-    if (items.length === 1) {
-      return;
-    }
-
-    setItems((current) =>
-      current.filter((_, itemIndex) => itemIndex !== index)
-    );
-  };
-
-  const resetForm = () => {
-    setEditingQuoteId(null);
-    setEditingQuoteNumber("");
-    setStatus("DRAFT");
-    setClientId("");
-    setValidUntil("");
-    setNotes("");
-    setItems([
-      {
-        description: "",
-        quantity: 1,
-        unitPrice: 0,
-      },
-    ]);
-  };
-
-  const startEditQuote = (quote: Quote) => {
-    if (quote.status === "CONVERTED") {
-      setError("Une soumission convertie ne peut plus être modifiée.");
-      return;
-    }
-
-    setMessage("");
+    void load();
+  }, [load]);
+  async function action(work: () => Promise<void>) {
+    if (busy) return;
+    setBusy(true);
     setError("");
-    setEditingQuoteId(quote.id);
-    setEditingQuoteNumber(quote.quoteNumber);
-    setStatus(quote.status || "DRAFT");
-    setClientId(String(quote.clientId));
-    setNotes(quote.notes ?? "");
-
-    if (quote.validUntil) {
-      const date = new Date(quote.validUntil);
-      setValidUntil(Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10));
-    } else {
-      setValidUntil("");
+    setMessage("");
+    try {
+      await work();
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Opération impossible.");
+    } finally {
+      setBusy(false);
     }
-
-    const normalizedItems = Array.isArray(quote.items)
-      ? quote.items.map((item) => ({
-          description: String(item.description ?? ""),
-          quantity: Number(item.quantity ?? 1),
-          unitPrice: Number(item.unitPrice ?? 0),
-        }))
-      : [];
-
-    setItems(
-      normalizedItems.length > 0
-        ? normalizedItems
-        : [{ description: "", quantity: 1, unitPrice: 0 }]
-    );
-
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const submitQuote = async (event: React.FormEvent) => {
-    event.preventDefault();
-
-      const today = new Date().toISOString().slice(0, 10);
-  if (validUntil && validUntil < today) {
-    setError("La date de validité ne peut pas être antérieure à aujourd’hui.");
-    return;
   }
-
-    setMessage("");
-    setError("");
-
-    if (!clientId) {
-      setError("Sélectionne un client.");
-      return;
-    }
-
-    const hasEmptyDescription = items.some(
-      (item) => !item.description.trim()
-    );
-
-    if (hasEmptyDescription) {
-      setError("Chaque ligne doit avoir une description.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      const isEditing = Boolean(editingQuoteId);
-      const endpoint = isEditing
-        ? `/api/quotes/${editingQuoteId}`
-        : "/api/quotes";
-
-      const res = await fetch(endpoint, {
-        method: isEditing ? "PATCH" : "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          clientId: Number(clientId),
+  function reset() {
+    setEditing(null);
+    setClientId("");
+    setItems([blank()]);
+    setNotes("");
+    setValidUntil("");
+  }
+  function edit(q: Quote) {
+    setEditing(q);
+    setClientId(String(q.clientId));
+    setItems(q.items);
+    setNotes(q.notes || "");
+    setValidUntil(q.validUntil?.slice(0, 10) || "");
+    document
+      .getElementById("quote-editor")
+      ?.scrollIntoView({ behavior: "smooth" });
+  }
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    await action(async () => {
+      await api(
+        editing ? `/api/quotes/${editing.id}` : "/api/quotes",
+        editing ? "PATCH" : "POST",
+        {
+          clientId,
           items,
+          notes,
           validUntil: validUntil || null,
-          notes: notes || null,
-          status: isEditing ? status : "DRAFT",
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(
-          data.error ||
-            (isEditing
-              ? "Erreur lors de la modification."
-              : "Erreur lors de la création.")
-        );
-      }
-
-      if (isEditing) {
-        setMessage(
-          `Soumission ${editingQuoteNumber} mise à jour avec succès.`
-        );
-      } else {
-        setMessage(
-          `Soumission ${data.quote?.quoteNumber ?? ""} créée avec succès.`
-        );
-      }
-
-      resetForm();
-      await loadQuotes();
-    } catch (err) {
-      console.error(err);
-
-      setError(
-        err instanceof Error
-          ? err.message
-          : editingQuoteId
-            ? "Erreur lors de la modification de la soumission."
-            : "Erreur lors de la création de la soumission."
+          status: "DRAFT",
+          version: editing?.version,
+        },
       );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const formatMoney = (value: string | number) => {
-    return Number(value || 0).toLocaleString("fr-CA", {
-      style: "currency",
-      currency: "CAD",
+      reset();
+      setMessage("Brouillon enregistré. Vérifiez-le avant de l’envoyer.");
     });
+  }
+  function print(q: Quote) {
+    const p = q.issuerSnapshot || profile;
+    try {
+      printDocument(
+        {
+          number: q.quoteNumber,
+          date: new Date(q.createdAt).toLocaleDateString("fr-CA"),
+          clientName: q.clientName,
+          items: q.items,
+          subtotal: q.amountSubtotal,
+          tps: q.tpsAmount,
+          tvq: q.tvqAmount,
+          total: q.amountTotal,
+          ...p,
+          notes: `${q.validUntil ? "Valide jusqu’au " + q.validUntil.slice(0, 10) + "\n" : ""}${q.notes || ""}`,
+        },
+        "Soumission",
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Impression impossible.");
+    }
+  }
+  let summary = {
+    amountSubtotal: 0,
+    tpsAmount: 0,
+    tvqAmount: 0,
+    amountTotal: 0,
   };
-
-  const formatDate = (value?: string | null) => {
-    if (!value) return "—";
-
-    return new Date(value).toLocaleDateString("fr-CA", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
+  try {
+    summary = calculateDocument(items, {
+      tps: Boolean(profile.tpsNumber),
+      tvq: Boolean(profile.tvqNumber),
     });
-  };
-
-  const statusLabel = (quoteStatus: string) => {
-    switch (quoteStatus) {
-      case "DRAFT":
-        return "Brouillon";
-      case "SENT":
-        return "Envoyée";
-      case "ACCEPTED":
-        return "Acceptée";
-      case "REJECTED":
-        return "Refusée";
-      case "EXPIRED":
-        return "Expirée";
-      case "CONVERTED":
-        return "Convertie";
-      default:
-        return quoteStatus;
-    }
-  };
-
-  const deleteQuote = async (quote: Quote) => {
-    const confirmed = window.confirm(
-      `Supprimer définitivement la soumission ${quote.quoteNumber} ?`
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      setDeletingId(quote.id);
-      setMessage("");
-      setError("");
-
-      const res = await fetch(`/api/quotes/${quote.id}`, {
-        method: "DELETE",
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Erreur lors de la suppression.");
-      }
-
-      if (editingQuoteId === quote.id) {
-        resetForm();
-      }
-
-      setMessage(
-        data.message || `Soumission ${quote.quoteNumber} supprimée avec succès.`
-      );
-
-      await loadQuotes();
-    } catch (err) {
-      console.error(err);
-
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Erreur lors de la suppression de la soumission."
-      );
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
-  const clearDrafts = async () => {
-    if (draftCount === 0) {
-      return;
-    }
-
-    const confirmed = window.confirm(
-      `Supprimer définitivement ${draftCount} brouillon${
-        draftCount > 1 ? "s" : ""
-      } ?`
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      setClearingDrafts(true);
-      setMessage("");
-      setError("");
-
-      const res = await fetch("/api/quotes", {
-        method: "DELETE",
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(
-          data.error || "Erreur lors de la suppression des brouillons."
-        );
-      }
-
-      const editedQuote = quotes.find(
-        (quote) => quote.id === editingQuoteId
-      );
-
-      if (editedQuote?.status === "DRAFT") {
-        resetForm();
-      }
-
-      setMessage(
-        data.message || `${data.deletedCount ?? draftCount} brouillon(s) supprimé(s).`
-      );
-
-      await loadQuotes();
-    } catch (err) {
-      console.error(err);
-
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Erreur lors de la suppression des brouillons."
-      );
-    } finally {
-      setClearingDrafts(false);
-    }
-  };
-
-  const convertQuoteToInvoice = async (quoteId: string) => {
-    const confirmed = window.confirm(
-      "Convertir cette soumission en facture ?"
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      setConvertingId(quoteId);
-      setMessage("");
-      setError("");
-
-      const res = await fetch(`/api/quotes/${quoteId}/convert`, {
-        method: "POST",
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Erreur lors de la conversion.");
-      }
-
-      if (editingQuoteId === quoteId) {
-        resetForm();
-      }
-
-      setMessage(
-        `Soumission convertie en facture ${data.invoiceNumber}.`
-      );
-
-      await loadQuotes();
-    } catch (err) {
-      console.error(err);
-
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Erreur lors de la conversion en facture."
-      );
-    } finally {
-      setConvertingId(null);
-    }
-  };
-const handlePrintQuote = (quote: Quote) => {
-    const sub=Number(quote.amountSubtotal)||0,tps=Number(quote.tpsAmount)||0,tvq=Number(quote.tvqAmount)||0,total=Number(quote.amountTotal)||0;
-    const list=Array.isArray(quote.items)?quote.items:[], date=new Date(quote.createdAt||Date.now()).toLocaleDateString("fr-CA");
-    const valid=quote.validUntil?new Date(quote.validUntil).toLocaleDateString("fr-CA"):"—";
-    const logo=userProfile.companyLogo?`<img src="${userProfile.companyLogo}" style="max-height:70px;max-width:200px;margin-bottom:10px;object-fit:contain;display:block">`:"";
-    const w=window.open("","_blank"); if(!w)return;
-    w.document.write(`<html><head><title>Soumission ${quote.quoteNumber}</title><style>
-      body{font-family:Arial,sans-serif;padding:40px;color:#333;line-height:1.5}.header{display:flex;justify-content:space-between;gap:30px;border-bottom:2px solid #eee;padding-bottom:20px}
-      table{width:100%;border-collapse:collapse;margin-top:30px}th,td{padding:12px;text-align:left;border-bottom:1px solid #ddd}th{background:#f7fafc}.r{text-align:right}
-      .total{font-weight:bold;background:#ebf8ff;color:#2b6cb0}.notes{margin-top:30px;padding:15px;background:#f7fafc;border-radius:6px}p{margin:6px 0}
-    </style></head><body>
-      <div class="header"><div>${logo}<h2>SOUMISSION</h2><p><b>Numéro :</b> ${quote.quoteNumber}</p><p><b>Date :</b> ${date}</p><p><b>Valide jusqu'au :</b> ${valid}</p></div>
-      <div style="text-align:right"><h3>Émetteur</h3><p><b>${userProfile.companyName||"Votre entreprise"}</b></p>${userProfile.companyAddress?`<p>${userProfile.companyAddress}</p>`:""}${userProfile.tpsNumber?`<p><b>TPS :</b> ${userProfile.tpsNumber}</p>`:""}${userProfile.tvqNumber?`<p><b>TVQ :</b> ${userProfile.tvqNumber}</p>`:""}</div></div>
-      <div style="margin-top:30px"><h3>Soumission pour :</h3><p><b>${quote.clientName||"Client"}</b></p>${quote.clientEmail?`<p>${quote.clientEmail}</p>`:""}</div>
-      <table><thead><tr><th>Description</th><th class="r">Qté</th><th class="r">Prix unitaire</th><th class="r">Montant</th></tr></thead><tbody>
-      ${list.map(i=>{const q=Number(i.quantity)||0,p=Number(i.unitPrice)||0;return `<tr><td>${i.description||"Service général"}</td><td class="r">${q}</td><td class="r">${p.toFixed(2)} $</td><td class="r">${(q*p).toFixed(2)} $</td></tr>`}).join("")}
-      <tr><td colspan="3"><b>Sous-total</b></td><td class="r">${sub.toFixed(2)} $</td></tr><tr><td colspan="3">TPS (5%)</td><td class="r">${tps.toFixed(2)} $</td></tr>
-      <tr><td colspan="3">TVQ (9.975%)</td><td class="r">${tvq.toFixed(2)} $</td></tr><tr class="total"><td colspan="3">TOTAL</td><td class="r">${total.toFixed(2)} $</td></tr></tbody></table>
-      ${quote.notes?`<div class="notes"><b>Notes / conditions</b><p>${quote.notes}</p></div>`:""}<script>window.print()</script></body></html>`);
-    w.document.close();
-  };
-
+  } catch {}
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: "24px",
-      }}
-    >
-      <section
-        style={{
-          backgroundColor: "var(--surface)",
-          border: "1px solid var(--border)",
-          borderRadius: "12px",
-          padding: "24px",
-        }}
-      >
-        <h2
-          style={{
-            marginTop: 0,
-            marginBottom: "6px",
-            color: "var(--foreground)",
-            fontSize: "22px",
-            fontWeight: 700,
-          }}
-        >
-          {editingQuoteId
-            ? `✏️ Modifier la soumission ${editingQuoteNumber}`
-            : "📋 Nouvelle soumission"}
-        </h2>
-
-        <p
-          style={{
-            marginTop: 0,
-            marginBottom: "24px",
-            color: "var(--text-muted)",
-            fontSize: "14px",
-          }}
-        >
-          {editingQuoteId
-            ? "Modifie les informations de la soumission puis enregistre les changements."
-            : "Prépare une offre de prix pour ton client avant de créer une facture."}
-        </p>
-
-        {message && (
-          <div
-            style={{
-              marginBottom: "18px",
-              padding: "12px 14px",
-              borderRadius: "8px",
-              backgroundColor: "rgba(34, 197, 94, 0.12)",
-              color: "var(--success)",
-              border: "1px solid rgba(34, 197, 94, 0.3)",
-            }}
-          >
-            {message}
+    <>
+      {error && (
+        <div role="alert" className="notice error">
+          {error}
+        </div>
+      )}
+      {message && (
+        <div role="status" className="notice success">
+          {message}
+        </div>
+      )}
+      <section className="panel" id="quote-editor">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">PRÉPAREZ VOTRE PROCHAIN PROJET</span>
+            <h2>
+              {editing
+                ? `Modifier ${editing.quoteNumber}`
+                : "Nouvelle soumission"}
+            </h2>
           </div>
-        )}
-
-        {error && (
-          <div
-            style={{
-              marginBottom: "18px",
-              padding: "12px 14px",
-              borderRadius: "8px",
-              backgroundColor: "rgba(239, 68, 68, 0.12)",
-              color: "var(--danger)",
-              border: "1px solid rgba(239, 68, 68, 0.3)",
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={submitQuote}>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: editingQuoteId
-                ? "repeat(auto-fit, minmax(200px, 1fr))"
-                : "repeat(auto-fit, minmax(220px, 1fr))",
-              gap: "16px",
-              marginBottom: "22px",
-            }}
-          >
-            <div>
-              <label style={labelStyle}>Client</label>
-
-              <select
-                value={clientId}
-                onChange={(e) => setClientId(e.target.value)}
-                style={inputStyle}
-                disabled={loadingData}
-              >
-                <option value="">Sélectionner un client</option>
-
-                {clients.map((client) => (
-                  <option key={client.id} value={client.id}>
-                    {client.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label style={labelStyle}>Valide jusqu&apos;au</label>
-
-              <input
-              type="date"
-              min={new Date().toISOString().slice(0, 10)}
-              value={validUntil}
-              onChange={(e) => setValidUntil(e.target.value)}
-              style={inputStyle}
-            />
-            </div>
-
-            {editingQuoteId && (
-              <div>
-                <label style={labelStyle}>Statut</label>
-
+          {editing && (
+            <button className="text-link" onClick={reset}>
+              Annuler la modification
+            </button>
+          )}
+        </div>
+        <form className="form-stack document-form" onSubmit={save}>
+          <fieldset className="form-section">
+            <legend>Client et validité</legend>
+            <div className="two-fields">
+              <label>
+                Client
                 <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value)}
-                  style={inputStyle}
+                  aria-label="Client"
+                  required
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
                 >
-                 {(
-                  allowedStatusTransitions[
-                    quotes.find((quote) => quote.id === editingQuoteId)?.status || "DRAFT"
-                  ] || ["DRAFT"]
-                ).map((statusValue) => (
-                  <option key={statusValue} value={statusValue}>
-                    {statusLabels[statusValue] || statusValue}
-                  </option>
-                ))}
+                  <option value="">Choisir un client</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
                 </select>
-              </div>
-            )}
-          </div>
-
-          <div
-            style={{
-              marginBottom: "12px",
-              fontWeight: 700,
-              color: "var(--foreground)",
-            }}
-          >
-            Services / produits
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "12px",
-            }}
-          >
+              </label>
+              <label>
+                Date de validité
+                <input
+                  type="date"
+                  value={validUntil}
+                  onChange={(e) => setValidUntil(e.target.value)}
+                />
+              </label>
+            </div>
+          </fieldset>
+          <fieldset className="form-section">
+            <legend>Prestations</legend>
             {items.map((item, index) => (
-              <div
-                key={index}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns:
-                    "minmax(240px, 1fr) 100px 140px 140px 46px",
-                  gap: "10px",
-                  alignItems: "end",
-                }}
-              >
-                <div>
-                  <label style={labelStyle}>Description</label>
-
-                  <input
-                    type="text"
-                    value={item.description}
-                    onChange={(e) =>
-                      updateItem(index, "description", e.target.value)
-                    }
-                    placeholder="Ex. Installation, consultation..."
-                    style={inputStyle}
-                  />
-                </div>
-
-                <div>
-                  <label style={labelStyle}>Qté</label>
-
-                  <input
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    value={item.quantity}
-                    onChange={(e) =>
-                      updateItem(index, "quantity", e.target.value)
-                    }
-                    style={inputStyle}
-                  />
-                </div>
-
-                <div>
-                  <label style={labelStyle}>Prix unitaire</label>
-
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={item.unitPrice}
-                    onChange={(e) =>
-                      updateItem(index, "unitPrice", e.target.value)
-                    }
-                    style={inputStyle}
-                  />
-                </div>
-
-                <div>
-                  <label style={labelStyle}>Total</label>
-
-                  <div
-                    style={{
-                      ...inputStyle,
-                      display: "flex",
-                      alignItems: "center",
-                      minHeight: "42px",
-                    }}
-                  >
-                    {formatMoney(item.quantity * item.unitPrice)}
+              <div className="invoice-line-editor" key={index}>
+                <div className="quote-lines">
+                  <label>
+                    Description
+                    <input
+                      required
+                      maxLength={1000}
+                      value={item.description}
+                      onChange={(e) =>
+                        setItems(
+                          items.map((v, i) =>
+                            i === index
+                              ? { ...v, description: e.target.value }
+                              : v,
+                          ),
+                        )
+                      }
+                    />
+                  </label>
+                  <label>
+                    Quantité
+                    <input
+                      required
+                      type="number"
+                      min="0.001"
+                      max="1000000"
+                      step="0.001"
+                      value={item.quantity}
+                      onChange={(e) =>
+                        setItems(
+                          items.map((v, i) =>
+                            i === index
+                              ? { ...v, quantity: Number(e.target.value) }
+                              : v,
+                          ),
+                        )
+                      }
+                    />
+                  </label>
+                  <label>
+                    Prix CAD
+                    <input
+                      required
+                      type="number"
+                      min="0"
+                      max="99999999"
+                      step="0.01"
+                      value={item.unitPrice}
+                      onChange={(e) =>
+                        setItems(
+                          items.map((v, i) =>
+                            i === index
+                              ? { ...v, unitPrice: Number(e.target.value) }
+                              : v,
+                          ),
+                        )
+                      }
+                    />
+                  </label>
+                  <div className="line-options">
+                    {(["isTpsApplicable", "isTvqApplicable"] as const).map(
+                      (key, k) => (
+                        <label className="checkbox-label" key={key}>
+                          <input
+                            type="checkbox"
+                            checked={item[key] !== false}
+                            disabled={
+                              !profile[k === 0 ? "tpsNumber" : "tvqNumber"]
+                            }
+                            onChange={(e) =>
+                              setItems(
+                                items.map((v, i) =>
+                                  i === index
+                                    ? { ...v, [key]: e.target.checked }
+                                    : v,
+                                ),
+                              )
+                            }
+                          />
+                          {k === 0 ? "TPS" : "TVQ"}
+                        </label>
+                      ),
+                    )}
                   </div>
+                  <button
+                    type="button"
+                    className="text-link"
+                    disabled={items.length === 1}
+                    onClick={() =>
+                      setItems(items.filter((_, i) => i !== index))
+                    }
+                  >
+                    Retirer
+                  </button>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => removeItem(index)}
-                  disabled={items.length === 1}
-                  title="Supprimer la ligne"
-                  style={{
-                    height: "42px",
-                    borderRadius: "8px",
-                    border: "1px solid var(--border)",
-                    backgroundColor: "var(--surface-soft)",
-                    color:
-                      items.length === 1
-                        ? "var(--text-muted)"
-                        : "var(--danger)",
-                    cursor:
-                      items.length === 1 ? "not-allowed" : "pointer",
-                    fontSize: "18px",
-                  }}
-                >
-                  ×
-                </button>
               </div>
             ))}
-          </div>
-
-          <button
-            type="button"
-            onClick={addItem}
-            style={{
-              marginTop: "14px",
-              padding: "9px 13px",
-              borderRadius: "8px",
-              border: "1px solid var(--border)",
-              backgroundColor: "var(--surface-soft)",
-              color: "var(--foreground)",
-              cursor: "pointer",
-              fontWeight: 600,
-            }}
-          >
-            + Ajouter une ligne
-          </button>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr minmax(280px, 360px)",
-              gap: "24px",
-              marginTop: "24px",
-            }}
-          >
-            <div>
-              <label style={labelStyle}>Notes / conditions</label>
-
+            <button
+              className="button secondary"
+              type="button"
+              disabled={items.length >= 100}
+              onClick={() => setItems([...items, blank()])}
+            >
+              + Ajouter une ligne
+            </button>
+          </fieldset>
+          <fieldset className="form-section">
+            <legend>Notes</legend>
+            <label>
+              Notes et conditions
               <textarea
+                rows={3}
+                maxLength={5000}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                rows={6}
-                placeholder="Ex. Soumission valide 30 jours..."
-                style={{
-                  ...inputStyle,
-                  resize: "vertical",
-                }}
               />
+            </label>
+          </fieldset>
+          <fieldset className="form-section document-summary">
+            <legend>Récapitulatif</legend>
+            <div className="summary-breakdown">
+              <p>
+                <span>Sous-total</span>
+                <span>{money(summary.amountSubtotal)}</span>
+              </p>
+              <p>
+                <span>TPS</span>
+                <span>{money(summary.tpsAmount)}</span>
+              </p>
+              <p>
+                <span>TVQ</span>
+                <span>{money(summary.tvqAmount)}</span>
+              </p>
             </div>
-
-            <div
-              style={{
-                backgroundColor: "var(--surface-soft)",
-                border: "1px solid var(--border)",
-                borderRadius: "10px",
-                padding: "18px",
-              }}
-            >
-              <SummaryRow
-                label="Sous-total"
-                value={formatMoney(subtotal)}
-              />
-
-              <SummaryRow label="TPS 5 %" value={formatMoney(tps)} />
-
-              <SummaryRow label="TVQ 9,975 %" value={formatMoney(tvq)} />
-
-              <div
-                style={{
-                  borderTop: "1px solid var(--border)",
-                  marginTop: "12px",
-                  paddingTop: "12px",
-                }}
-              >
-                <SummaryRow
-                  label="Total"
-                  value={formatMoney(total)}
-                  strong
-                />
+            <div className="document-submit">
+              <div className="grand-total">
+                <span>Total CAD</span>
+                <strong>{money(summary.amountTotal)}</strong>
               </div>
-            </div>
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: "10px",
-              marginTop: "22px",
-            }}
-          >
-            {editingQuoteId && (
-              <button
-                type="button"
-                onClick={() => {
-                  resetForm();
-                  setMessage("");
-                  setError("");
-                }}
-                disabled={loading}
-                style={{
-                  padding: "11px 18px",
-                  borderRadius: "8px",
-                  border: "1px solid var(--border)",
-                  backgroundColor: "var(--surface-soft)",
-                  color: "var(--foreground)",
-                  cursor: loading ? "not-allowed" : "pointer",
-                  fontWeight: 700,
-                  opacity: loading ? 0.7 : 1,
-                }}
-              >
-                Annuler
+              <button className="button primary" disabled={busy}>
+                {busy ? "Enregistrement…" : "Enregistrer le brouillon"}
               </button>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                padding: "11px 18px",
-                borderRadius: "8px",
-                border: "none",
-                backgroundColor: "var(--primary)",
-                color: "#fff",
-                cursor: loading ? "not-allowed" : "pointer",
-                fontWeight: 700,
-                opacity: loading ? 0.7 : 1,
-              }}
-            >
-              {loading
-                ? editingQuoteId
-                  ? "Enregistrement..."
-                  : "Création..."
-                : editingQuoteId
-                  ? "Enregistrer les modifications"
-                  : "Créer la soumission"}
-            </button>
-          </div>
+            </div>
+          </fieldset>
         </form>
       </section>
-
-      <section
-        style={{
-          backgroundColor: "var(--surface)",
-          border: "1px solid var(--border)",
-          borderRadius: "12px",
-          padding: "24px",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: "12px",
-            flexWrap: "wrap",
-            marginBottom: "18px",
-          }}
-        >
-          <h2
-            style={{
-              margin: 0,
-              fontSize: "20px",
-              color: "var(--foreground)",
-            }}
-          >
-            Soumissions
-          </h2>
-
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">DU PREMIER ÉCHANGE À LA FACTURE</span>
+            <h2>Vos soumissions</h2>
+          </div>
           <button
-            type="button"
-            onClick={clearDrafts}
-            disabled={draftCount === 0 || clearingDrafts || loading}
-            style={{
-              padding: "8px 11px",
-              borderRadius: "7px",
-              border: "1px solid rgba(239, 68, 68, 0.45)",
-              backgroundColor: "rgba(239, 68, 68, 0.10)",
-              color: "var(--danger)",
-              cursor:
-                draftCount === 0 || clearingDrafts || loading
-                  ? "not-allowed"
-                  : "pointer",
-              fontSize: "12px",
-              fontWeight: 700,
-              opacity:
-                draftCount === 0 || clearingDrafts || loading ? 0.55 : 1,
-              whiteSpace: "nowrap",
+            className="text-link danger-text"
+            disabled={busy || !quotes.some((q) => q.status === "DRAFT")}
+            onClick={() => {
+              if (confirm("Supprimer tous les brouillons ?"))
+                void action(async () => {
+                  await api("/api/quotes", "DELETE");
+                  reset();
+                  setMessage("Brouillons supprimés.");
+                });
             }}
           >
-            {clearingDrafts
-              ? "Suppression..."
-              : `🗑 Vider les brouillons (${draftCount})`}
+            Vider les brouillons
           </button>
         </div>
-
-        {loadingData ? (
-          <p style={{ color: "var(--text-muted)" }}>
-            Chargement...
-          </p>
-        ) : quotes.length === 0 ? (
-          <p style={{ color: "var(--text-muted)" }}>
-            Aucune soumission pour le moment.
-          </p>
+        <p className="field-help">
+          Après envoi, le contenu est figé. Marquez une soumission acceptée
+          uniquement après avoir reçu l’accord du client. La conversion conserve
+          les montants proposés.
+        </p>
+        {loading ? (
+          <p>Chargement…</p>
+        ) : !quotes.length ? (
+          <div className="empty-state">
+            <h3>Vos prochains projets commencent ici.</h3>
+            <p>
+              Préparez votre première soumission dans le formulaire ci-dessus.
+            </p>
+          </div>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table
-              style={{
-                width: "100%",
-                borderCollapse: "collapse",
-                minWidth: "900px",
-              }}
-            >
+          <div className="table-scroll">
+            <table className="data-table">
               <thead>
-                <tr
-                  style={{
-                    backgroundColor: "var(--surface-soft)",
-                  }}
-                >
-                  <Th>Numéro</Th>
-                  <Th>Client</Th>
-                  <Th>Date</Th>
-                  <Th>Valide jusqu&apos;au</Th>
-                  <Th>Statut</Th>
-                  <Th align="right">Total</Th>
-                  <Th align="right">Actions</Th>
+                <tr>
+                  <th>Document</th>
+                  <th>Client</th>
+                  <th>Total</th>
+                  <th>Statut</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
-
               <tbody>
-                {quotes.map((quote) => (
-                  <tr
-                    key={quote.id}
-                    style={{
-                      borderTop: "1px solid var(--border)",
-                    }}
-                  >
-                    <Td>
-                      <strong>{quote.quoteNumber}</strong>
-                    </Td>
-
-                    <Td>{quote.clientName}</Td>
-
-                    <Td>{formatDate(quote.createdAt)}</Td>
-
-                    <Td>{formatDate(quote.validUntil)}</Td>
-
-                    <Td>
+                {quotes.map((q) => (
+                  <tr key={q.id}>
+                    <td>
+                      <strong>{q.quoteNumber}</strong>
+                      <small>
+                        {q.validUntil
+                          ? `Valide jusqu’au ${q.validUntil.slice(0, 10)}`
+                          : "Sans échéance"}
+                      </small>
+                    </td>
+                    <td>{q.clientName}</td>
+                    <td>{money(q.amountTotal)}</td>
+                    <td>
                       <span
-                        style={{
-                          display: "inline-flex",
-                          padding: "5px 9px",
-                          borderRadius: "999px",
-                          backgroundColor: "var(--surface-soft)",
-                          border: "1px solid var(--border)",
-                          fontSize: "12px",
-                          fontWeight: 700,
-                        }}
+                        className={`status-badge ${q.status.toLowerCase()}`}
                       >
-                        {statusLabel(quote.status)}
+                        {labels[q.status] || q.status}
                       </span>
-                    </Td>
-
-                    <Td align="right">
-                      <strong>{formatMoney(quote.amountTotal)}</strong>
-                    </Td>
-
-                    <Td align="right">
-                      {quote.status === "CONVERTED" ? (
-                        <span
-                          style={{
-                            color: "var(--success)",
-                            fontSize: "13px",
-                            fontWeight: 700,
-                          }}
-                        >
-                          ✓ Facture créée
-                        </span>
-                      ) : (
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "flex-end",
-                            alignItems: "center",
-                            gap: "8px",
-                            flexWrap: "wrap",
-                          }}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => startEditQuote(quote)}
-                            disabled={loading || convertingId === quote.id}
-                            style={{
-                              padding: "8px 11px",
-                              borderRadius: "7px",
-                              border: "1px solid var(--border)",
-                              backgroundColor: "var(--surface-soft)",
-                              color: "var(--foreground)",
-                              cursor:
-                                loading || convertingId === quote.id
-                                  ? "not-allowed"
-                                  : "pointer",
-                              fontSize: "12px",
-                              fontWeight: 700,
-                              whiteSpace: "nowrap",
-                              opacity:
-                                loading || convertingId === quote.id ? 0.65 : 1,
-                            }}
-                          >
-                            Modifier
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handlePrintQuote(quote)}
-                            disabled={loading || convertingId === quote.id}
-                            style={{
-                              padding: "8px 11px",
-                              borderRadius: "7px",
-                              border: "1px solid var(--border)",
-                              backgroundColor: "var(--surface-soft)",
-                              color: "var(--foreground)",
-                              cursor:
-                                loading || convertingId === quote.id
-                                  ? "not-allowed"
-                                  : "pointer",
-                              fontSize: "12px",
-                              fontWeight: 700,
-                              whiteSpace: "nowrap",
-                              opacity:
-                                loading || convertingId === quote.id ? 0.65 : 1,
-                            }}
-                          >
-                            🖨 PDF
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => deleteQuote(quote)}
-                            disabled={
-                              deletingId === quote.id ||
-                              convertingId === quote.id ||
-                              loading ||
-                              clearingDrafts
-                            }
-                            style={{
-                              padding: "8px 11px",
-                              borderRadius: "7px",
-                              border: "1px solid rgba(239, 68, 68, 0.45)",
-                              backgroundColor: "rgba(239, 68, 68, 0.10)",
-                              color: "var(--danger)",
-                              cursor:
-                                deletingId === quote.id ||
-                                convertingId === quote.id ||
-                                loading ||
-                                clearingDrafts
-                                  ? "not-allowed"
-                                  : "pointer",
-                              fontSize: "12px",
-                              fontWeight: 700,
-                              opacity:
-                                deletingId === quote.id ||
-                                convertingId === quote.id ||
-                                loading ||
-                                clearingDrafts
-                                  ? 0.65
-                                  : 1,
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {deletingId === quote.id
-                              ? "Suppression..."
-                              : "Supprimer"}
-                          </button>
-
-                         {quote.status === "ACCEPTED" ? (
-                          <button
-                            type="button"
-                            onClick={() => convertQuoteToInvoice(quote.id)}
-                            disabled={convertingId === quote.id || loading}
-                            style={{
-                              padding: "8px 11px",
-                              borderRadius: "7px",
-                              border: "none",
-                              backgroundColor: "var(--primary)",
-                              color: "#fff",
-                              cursor:
-                                convertingId === quote.id || loading
-                                  ? "not-allowed"
-                                  : "pointer",
-                              fontSize: "12px",
-                              fontWeight: 700,
-                              opacity:
-                                convertingId === quote.id || loading
-                                  ? 0.65
-                                  : 1,
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {convertingId === quote.id
-                              ? "Conversion..."
-                              : "Convertir en facture"}
-                          </button>
-                        ) : (
-                          <span
-                            style={{
-                              color: "var(--text-muted)",
-                              fontSize: "12px",
-                              fontWeight: 600,
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            Acceptation requise
-                          </span> 
+                    </td>
+                    <td>
+                      <div className="table-actions">
+                        <button className="text-link" onClick={() => print(q)}>
+                          Imprimer
+                        </button>
+                        {q.status === "DRAFT" && (
+                          <>
+                            <button
+                              className="text-link"
+                              disabled={busy}
+                              onClick={() => edit(q)}
+                            >
+                              Modifier
+                            </button>
+                            <button
+                              className="text-link danger-text"
+                              disabled={busy}
+                              onClick={() => {
+                                if (confirm("Supprimer ce brouillon ?"))
+                                  void action(async () => {
+                                    await api(`/api/quotes/${q.id}`, "DELETE");
+                                    if (editing?.id === q.id) reset();
+                                  });
+                              }}
+                            >
+                              Supprimer
+                            </button>
+                          </>
                         )}
-                        </div>
-                      )}
-                    </Td>
+                        {["DRAFT", "SENDING"].includes(q.status) && (
+                          <button
+                            className="button primary small-button"
+                            disabled={busy}
+                            onClick={() => {
+                              if (
+                                confirm(
+                                  `Envoyer cette soumission à ${q.clientEmail || "l’adresse du client"} ? Son contenu sera figé.`,
+                                )
+                              )
+                                void action(async () => {
+                                  await api(`/api/quotes/${q.id}`, "POST");
+                                  setMessage("Soumission envoyée.");
+                                });
+                            }}
+                          >
+                            {q.status === "SENDING"
+                              ? "Reprendre l’envoi"
+                              : "Envoyer"}
+                          </button>
+                        )}
+                        {q.status === "SENT" &&
+                          ["ACCEPTED", "REJECTED", "EXPIRED"].map((status) => (
+                            <button
+                              key={status}
+                              className="text-link"
+                              disabled={busy}
+                              onClick={() => {
+                                if (
+                                  confirm(
+                                    `Marquer la soumission « ${labels[status]} » ?`,
+                                  )
+                                )
+                                  void action(async () => {
+                                    await api(`/api/quotes/${q.id}`, "PATCH", {
+                                      status,
+                                      version: q.version,
+                                    });
+                                  });
+                              }}
+                            >
+                              {labels[status]}
+                            </button>
+                          ))}
+                        {q.status === "ACCEPTED" && (
+                          <button
+                            className="button primary small-button"
+                            disabled={busy}
+                            onClick={() =>
+                              void action(async () => {
+                                const result = await api<{
+                                  invoiceNumber: string;
+                                }>(`/api/quotes/${q.id}/convert`, "POST");
+                                setMessage(
+                                  `Facture ${result.invoiceNumber} créée. Retrouvez-la dans Facturation.`,
+                                );
+                              })
+                            }
+                          >
+                            Convertir en facture
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -1207,95 +560,6 @@ const handlePrintQuote = (quote: Quote) => {
           </div>
         )}
       </section>
-    </div>
+    </>
   );
 }
-
-function SummaryRow({
-  label,
-  value,
-  strong = false,
-}: {
-  label: string;
-  value: string;
-  strong?: boolean;
-}) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        gap: "16px",
-        marginBottom: "8px",
-        fontWeight: strong ? 700 : 500,
-        fontSize: strong ? "17px" : "14px",
-        color: "var(--foreground)",
-      }}
-    >
-      <span>{label}</span>
-      <span>{value}</span>
-    </div>
-  );
-}
-
-function Th({
-  children,
-  align = "left",
-}: {
-  children: React.ReactNode;
-  align?: "left" | "right";
-}) {
-  return (
-    <th
-      style={{
-        textAlign: align,
-        padding: "12px",
-        color: "var(--text-muted)",
-        fontSize: "12px",
-        fontWeight: 700,
-      }}
-    >
-      {children}
-    </th>
-  );
-}
-
-function Td({
-  children,
-  align = "left",
-}: {
-  children: React.ReactNode;
-  align?: "left" | "right";
-}) {
-  return (
-    <td
-      style={{
-        textAlign: align,
-        padding: "14px 12px",
-        color: "var(--foreground)",
-        fontSize: "14px",
-      }}
-    >
-      {children}
-    </td>
-  );
-}
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  marginBottom: "6px",
-  color: "var(--foreground)",
-  fontSize: "13px",
-  fontWeight: 600,
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "10px 11px",
-  borderRadius: "8px",
-  border: "1px solid var(--border)",
-  backgroundColor: "var(--surface-soft)",
-  color: "var(--foreground)",
-  outline: "none",
-  boxSizing: "border-box",
-};

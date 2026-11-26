@@ -1,81 +1,39 @@
-import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { getDb } from '@/lib/db';
-
-export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
-
-// 1. MODIFICATION DU STATUT
+import { NextResponse } from "next/server";
+import { getDb } from "@/lib/db";
+import { requireUser } from "@/lib/session";
+import { apiError, readJson } from "@/lib/http";
+import { InputError } from "@/lib/validation";
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> },
 ) {
   try {
-    const cookieStore = await cookies();
-    const userId = cookieStore.get('user_session')?.value;
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 });
-    }
-
-    // Extraction sécurisée des paramètres
-    const resolvedParams = await params;
-    const invoiceId = resolvedParams.id;
-    const { status } = await request.json();
-
-    if (!status) {
-      return NextResponse.json({ error: 'Statut manquant.' }, { status: 400 });
-    }
-
-    const sql = getDb(); // Instanciation lazy à la volée
-
-    await sql`
-      UPDATE "Invoice"
-      SET "status" = ${status}
-      WHERE "id" = ${invoiceId} AND "userId" = ${userId}
-    `;
-
-    return NextResponse.json({ message: 'Statut mis à jour avec succès !' }, { status: 200 });
-
-  } catch (error: any) {
-    console.error("Erreur modification statut facture :", error.message);
-    return NextResponse.json({ error: 'Une erreur interne est survenue.' }, { status: 500 });
+    const userId = await requireUser(),
+      { id } = await context.params;
+    const b = await readJson(request);
+    if (!["PENDING", "PAID", "CANCELED"].includes(String(b.status)))
+      throw new InputError("Statut invalide.");
+    const rows =
+      await getDb()`UPDATE "Invoice" SET status=${String(b.status)}::"InvoiceStatus","updatedAt"=NOW()
+      WHERE id=${id} AND "userId"=${userId} AND status<>'CANCELED' AND (status<>'PAID' OR ${String(b.status)}='PAID') RETURNING id`;
+    if (!rows.length)
+      throw new InputError(
+        "Facture introuvable ou statut définitif. Une facture payée ou annulée ne peut plus être modifiée ici.",
+        409,
+      );
+    return NextResponse.json({ message: "Statut enregistré." });
+  } catch (error) {
+    return apiError(error);
   }
 }
-
-// 2. SUPPRESSION SÉCURISÉE DE LA FACTURE
-export async function DELETE(
-  request: Request,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
-) {
+export async function DELETE() {
   try {
-    const cookieStore = await cookies();
-    const userId = cookieStore.get('user_session')?.value;
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 });
-    }
-
-    // Extraction sécurisée des paramètres
-    const resolvedParams = await params;
-    const invoiceId = resolvedParams.id;
-
-    const sql = getDb(); // Instanciation lazy à la volée
-
-    const result = await sql`
-      DELETE FROM "Invoice"
-      WHERE "id" = ${invoiceId} AND "userId" = ${userId}
-      RETURNING "invoiceNumber"
-    `;
-
-    if (result.length === 0) {
-      return NextResponse.json({ error: 'Facture introuvable ou non autorisée.' }, { status: 404 });
-    }
-
-    return NextResponse.json({ message: `Facture ${result[0].invoiceNumber} supprimée.` }, { status: 200 });
-
-  } catch (error: any) {
-    console.error("❌ ERREUR API INVOICE (DELETE) :", error.message);
-    return NextResponse.json({ error: 'Une erreur interne est survenue lors de la suppression.' }, { status: 500 });
+    await requireUser();
+    throw new InputError(
+      "Les factures émises sont conservées. Annulez une facture en attente plutôt que de la supprimer.",
+      409,
+    );
+  } catch (error) {
+    return apiError(error);
   }
 }

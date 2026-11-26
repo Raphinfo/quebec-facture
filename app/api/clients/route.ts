@@ -1,76 +1,35 @@
-import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { getDb } from '@/lib/db';
-
-export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
-
-// 1. RÉCUPÉRER LES CLIENTS
+import { NextResponse } from "next/server";
+import { getDb } from "@/lib/db";
+import { requireUser } from "@/lib/session";
+import { apiError, readJson } from "@/lib/http";
+import { text, emailAddress } from "@/lib/validation";
 export async function GET() {
   try {
-    const cookieStore = await cookies();
-    const userId = cookieStore.get('user_session')?.value;
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 });
-    }
-
-    const sql = getDb(); // Instanciation lazy
-    const clients = await sql`
-      SELECT * FROM "Client"
-      WHERE "userId" = ${userId}
-      ORDER BY id DESC
-    `;
-
-    return NextResponse.json(clients, { status: 200 });
-  } catch (error: any) {
-    console.error("❌ Erreur GET /api/clients :", error.message);
-    return NextResponse.json([], { status: 200 });
+    const userId = await requireUser();
+    return NextResponse.json(
+      await getDb()`SELECT *,company AS "companyName" FROM "Client" WHERE "userId"=${userId} ORDER BY id DESC`,
+    );
+  } catch (error) {
+    return apiError(error);
   }
 }
-
-// 2. AJOUTER UN CLIENT
 export async function POST(request: Request) {
   try {
-    const cookieStore = await cookies();
-    const userId = cookieStore.get('user_session')?.value;
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 });
-    }
-
-    const body = await request.json();
-    
-    // Ping de vérification de session (body vide)
-    if (!body || Object.keys(body).length === 0) {
-      return NextResponse.json({ ok: true }, { status: 200 });
-    }
-
-    const { name, company, neq, address, email, phone } = body;
-
-    if (!name) {
-      return NextResponse.json({ error: 'Le nom du client est obligatoire.' }, { status: 400 });
-    }
-
-    const sql = getDb(); // Instanciation lazy
-
-    await sql`
-      INSERT INTO "Client" ("userId", "name", "company", "neq", "address", "email", "phone")
-      VALUES (
-        ${userId}, 
-        ${name}, 
-        ${company || null}, 
-        ${neq || null}, 
-        ${address || null}, 
-        ${email || null}, 
-        ${phone || null}
-      )
-    `;
-
-    return NextResponse.json({ message: 'Client ajouté avec succès !' }, { status: 201 });
-
-  } catch (error: any) {
-    console.error("❌ Erreur POST /api/clients :", error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const userId = await requireUser();
+    const b = await readJson(request);
+    const name = text(b.name, "Nom", 200, true),
+      company = text(b.company ?? b.companyName, "Entreprise", 200);
+    const email = b.email ? emailAddress(b.email) : "";
+    const address = text(b.address, "Adresse", 500),
+      phone = text(b.phone, "Téléphone", 40),
+      neq = text(b.neq, "NEQ", 20);
+    const [client] =
+      await getDb()`INSERT INTO "Client" ("userId",name,company,neq,address,email,phone) VALUES (${userId},${name},${company},${neq},${address},${email},${phone}) RETURNING id,name,company,email`;
+    return NextResponse.json(
+      { message: "Client ajouté.", client },
+      { status: 201 },
+    );
+  } catch (error) {
+    return apiError(error);
   }
 }

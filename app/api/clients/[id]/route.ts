@@ -1,38 +1,44 @@
-import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { getDb } from '@/lib/db';
+import { NextResponse } from "next/server";
+import { getDb } from "@/lib/db";
+import { requireUser } from "@/lib/session";
+import { apiError, readJson } from "@/lib/http";
+import { InputError, clientIdValue, text, emailAddress } from "@/lib/validation";
 
-export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
-
-export async function DELETE(
+export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> },
 ) {
   try {
-    const cookieStore = await cookies();
-    const userId = cookieStore.get('user_session')?.value;
+    const userId = await requireUser();
+    const id = clientIdValue((await context.params).id);
+    const b = await readJson(request);
+    const name = text(b.name, "Nom", 200, true);
+    const company = text(b.company ?? b.companyName, "Entreprise", 200);
+    const email = b.email ? emailAddress(b.email) : "";
+    const address = text(b.address, "Adresse", 500);
+    const phone = text(b.phone, "Téléphone", 40);
+    const neq = text(b.neq, "NEQ", 20);
+    const [client] =
+      await getDb()`UPDATE "Client" SET name=${name},company=${company},neq=${neq},address=${address},email=${email},phone=${phone} WHERE id=${id} AND "userId"=${userId} RETURNING id,name,company,neq,address,email,phone`;
+    if (!client) throw new InputError("Client introuvable.", 404);
+    return NextResponse.json({ message: "Client mis à jour.", client });
+  } catch (error) {
+    return apiError(error);
+  }
+}
 
-    if (!userId) {
-      return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 });
-    }
-
-    // Résolution hybride du paramètre id (Next.js 15+)
-    const resolvedParams = await params;
-    const clientId = resolvedParams.id;
-
-    // Instance DB exécutée uniquement lors de l'appel de la route
-    const sql = getDb();
-
-    await sql`
-      DELETE FROM "Client" 
-      WHERE "id" = ${clientId} AND "userId" = ${userId}
-    `;
-
-    return NextResponse.json({ message: 'Client supprimé avec succès !' }, { status: 200 });
-
-  } catch (error: any) {
-    console.error("Erreur suppression client :", error.message);
-    return NextResponse.json({ error: 'Une erreur interne est survenue.' }, { status: 500 });
+export async function DELETE(
+  _: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  try {
+    const userId = await requireUser();
+    const id = clientIdValue((await context.params).id);
+    const result =
+      await getDb()`DELETE FROM "Client" WHERE id=${id} AND "userId"=${userId} RETURNING id`;
+    if (!result.length) throw new InputError("Client introuvable.", 404);
+    return NextResponse.json({ message: "Client supprimé." });
+  } catch (error) {
+    return apiError(error);
   }
 }

@@ -1,22 +1,12 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+
 import Footer from "@/components/Footer";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
 export const metadata: Metadata = {
-  title: "Québec Facture - Facturation & TPS/TVQ",
+  title: "Québec Facture — Facturation, Soumissions & TPS/TVQ",
   description:
-    "Solution de facturation simple, rapide et conforme pour les entrepreneurs et travailleurs autonomes du Québec.",
+    "Logiciel de facturation simple et moderne pour travailleurs autonomes et PME du Québec : soumissions, factures, Virement Interac, rapports TPS/TVQ et export comptable.",
 };
 
 export default function RootLayout({
@@ -25,7 +15,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr" className="h-full">
+    <html lang="fr-CA" className="h-full" data-scroll-behavior="smooth" suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -54,10 +44,13 @@ export default function RootLayout({
         />
       </head>
 
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col justify-between`}
-      >
-        <main className="flex-grow">{children}</main>
+      <body className="antialiased min-h-screen flex flex-col justify-between">
+        <a className="skip-link" href="#main-content">
+          Aller au contenu
+        </a>
+        <main id="main-content" className="flex-grow">
+          {children}
+        </main>
         <Footer />
       </body>
     </html>

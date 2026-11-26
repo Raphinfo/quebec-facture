@@ -1,485 +1,92 @@
-import { NextRequest, NextResponse } from "next/server";
+import { subscriptionState } from "@/lib/subscriptions";
+import { NextResponse } from "next/server";
+import { getDb } from "@/lib/db";
+import { apiError, readBodyText } from "@/lib/http";
+import { getStripe } from "@/lib/stripe";
 import Stripe from "stripe";
-import { neon } from "@neondatabase/serverless";
 
-export const dynamic = "force-dynamic";
-
-// ============================================================
-// STRIPE
-// ============================================================
-
-function getStripe() {
-  const stripeKey = process.env.STRIPE_SECRET_KEY;
-
-  if (!stripeKey) {
-    throw new Error(
-      "STRIPE_SECRET_KEY n'est pas définie."
-    );
-  }
-
-  return new Stripe(stripeKey);
-}
-
-// ============================================================
-// NEON
-// ============================================================
-
-function getDb() {
-  const dbUrl = process.env.DATABASE_URL;
-
-  if (!dbUrl) {
-    throw new Error(
-      "DATABASE_URL n'est pas définie."
-    );
-  }
-
-  return neon(dbUrl);
-}
-
-// ============================================================
-// WEBHOOK STRIPE
-// ============================================================
-
-export async function POST(req: NextRequest) {
+export async function POST(request: Request) {
   try {
+    if (!process.env.STRIPE_WEBHOOK_SECRET)
+      return NextResponse.json(
+        { error: "Service indisponible." },
+        { status: 503 },
+      );
+    const signature=request.headers.get('stripe-signature');
+    if(!signature)return NextResponse.json({error:'Signature manquante.'},{status:400});
+    const body=await readBodyText(request,1_000_000);
     const stripe = getStripe();
-    const sql = getDb();
-
-    const webhookSecret =
-      process.env.STRIPE_WEBHOOK_SECRET;
-
-    if (!webhookSecret) {
-      console.error(
-        "❌ STRIPE_WEBHOOK_SECRET non défini"
-      );
-
-      return NextResponse.json(
-        {
-          error:
-            "Configuration webhook manquante.",
-        },
-        { status: 500 }
-      );
-    }
-
-    // Stripe exige le corps brut pour vérifier
-    // correctement la signature du webhook.
-    const body = await req.text();
-
-    const sig =
-      req.headers.get("stripe-signature");
-
-    if (!sig) {
-      return NextResponse.json(
-        {
-          error:
-            "Signature Stripe manquante.",
-        },
-        { status: 400 }
-      );
-    }
-
     let event: Stripe.Event;
-
-    // ==========================================================
-    // VÉRIFIER LA SIGNATURE STRIPE
-    // ==========================================================
-
     try {
-      event =
-        stripe.webhooks.constructEvent(
-          body,
-          sig,
-          webhookSecret
-        );
-    } catch (err: any) {
-      console.error(
-        `❌ Erreur signature Webhook Stripe : ${err.message}`
+      event = stripe.webhooks.constructEvent(
+        body,
+        signature,
+        process.env.STRIPE_WEBHOOK_SECRET,
       );
-
+    } catch {
       return NextResponse.json(
-        {
-          error:
-            `Signature invalide : ${err.message}`,
-        },
-        { status: 400 }
+        { error: "Signature invalide." },
+        { status: 400 },
       );
     }
-
-    console.log(
-      `ℹ️ Événement Stripe reçu : ${event.type}`
-    );
-
-    // ============================================================
-    // TRAITEMENT DES ÉVÉNEMENTS
-    // ============================================================
-
-    switch (event.type) {
-
-      // ==========================================================
-      // 1. CHECKOUT TERMINÉ
-      // ==========================================================
-
-      case "checkout.session.completed": {
-        const session =
-          event.data.object as Stripe.Checkout.Session;
-
-        const stripeCustomerId =
-          typeof session.customer === "string"
-            ? session.customer
-            : session.customer?.id || null;
-
-        const stripeSubId =
-          typeof session.subscription === "string"
-            ? session.subscription
-            : session.subscription?.id || null;
-
-        const userEmail =
-          (
-            session.customer_details?.email ||
-            session.customer_email
-          )
-            ?.trim()
-            .toLowerCase() || null;
-
-        if (!userEmail) {
-          console.warn(
-            "⚠️ Aucun courriel trouvé dans la session Checkout."
-          );
-
-          break;
-        }
-
-        if (!stripeSubId) {
-          console.warn(
-            "⚠️ Aucun abonnement Stripe trouvé dans la session Checkout."
-          );
-
-          break;
-        }
-
-        try {
-          // Stripe reste la source de vérité
-          // pour le statut réel de l'abonnement.
-          const subscription =
-            await stripe.subscriptions.retrieve(
-              stripeSubId
-            );
-
-          const subscriptionStatus =
-            subscription.status === "trialing"
-              ? "TRIALING"
-              : "ACTIVE";
-
-          const result = await sql`
-            UPDATE "User"
-            SET
-              "plan" = 'PRO',
-              "subscriptionStatus" = ${subscriptionStatus},
-              "stripeCustomerId" = ${stripeCustomerId},
-              "stripeSubId" = ${stripeSubId}
-            WHERE LOWER(email) = ${userEmail}
-            RETURNING
-              id,
-              email,
-              plan,
-              "subscriptionStatus"
-          `;
-
-          if (result.length > 0) {
-            console.log(
-              `🎉 Utilisateur ${result[0].id} → PRO / ${subscriptionStatus}`
-            );
-          } else {
-            console.error(
-              `❌ Aucun utilisateur trouvé pour ${userEmail}`
-            );
-          }
-
-        } catch (dbError: any) {
-          console.error(
-            "❌ Erreur checkout.session.completed :",
-            dbError.message
-          );
-
-          return NextResponse.json(
-            {
-              error:
-                "Erreur base de données.",
-            },
-            { status: 500 }
-          );
-        }
-
-        break;
-      }
-
-      // ==========================================================
-      // 2. ABONNEMENT MODIFIÉ
-      // ==========================================================
-
-      case "customer.subscription.updated": {
-        const subscription =
-          event.data.object as Stripe.Subscription;
-
-        if (
-          subscription.status === "trialing" ||
-          subscription.status === "active" ||
-          subscription.status === "past_due" ||
-          subscription.status === "unpaid" ||
-          subscription.status === "canceled"
-        ) {
-          try {
-            const status =
-              subscription.status === "trialing"
-                ? "TRIALING"
-                : subscription.status === "active"
-                ? "ACTIVE"
-                : subscription.status === "canceled"
-                ? "CANCELED"
-                : "PAST_DUE";
-
-            await sql`
-              UPDATE "User"
-              SET
-                "subscriptionStatus" = ${status}
-              WHERE "stripeSubId" = ${subscription.id}
-            `;
-
-            console.log(
-              `🔄 Abonnement ${subscription.id} → ${status}`
-            );
-
-          } catch (dbError: any) {
-            console.error(
-              "❌ Erreur customer.subscription.updated :",
-              dbError.message
-            );
-
-            return NextResponse.json(
-              {
-                error:
-                  "Erreur base de données.",
-              },
-              { status: 500 }
-            );
-          }
-        } else {
-          console.log(
-            `ℹ️ Statut Stripe non traité : ${subscription.status}`
-          );
-        }
-
-        break;
-      }
-
-      // ==========================================================
-      // 3. PAIEMENT / RENOUVELLEMENT RÉUSSI
-      // ==========================================================
-
-      case "invoice.payment_succeeded": {
-        const invoice =
-          event.data.object as Stripe.Invoice;
-
-        const stripeCustomerId =
-          typeof invoice.customer === "string"
-            ? invoice.customer
-            : invoice.customer?.id || null;
-
-        if (!stripeCustomerId) {
-          console.warn(
-            "⚠️ Aucun Stripe Customer ID dans la facture."
-          );
-
-          break;
-        }
-
-        try {
-          // ======================================================
-          // Une facture réussie ne signifie pas forcément
-          // que l'abonnement n'est plus en période d'essai.
-          // Stripe reste la source de vérité.
-          // ======================================================
-
-          const subscriptions =
-            await stripe.subscriptions.list({
-              customer: stripeCustomerId,
-              status: "all",
-              limit: 10,
-            });
-
-          const subscription =
-            subscriptions.data.find(
-              (sub) =>
-                sub.status === "trialing" ||
-                sub.status === "active" ||
-                sub.status === "past_due" ||
-                sub.status === "unpaid"
-            );
-
-          if (!subscription) {
-            console.warn(
-              `⚠️ Aucun abonnement actif trouvé pour ${stripeCustomerId}`
-            );
-
-            break;
-          }
-
-          if (
-            subscription.status !== "trialing" &&
-            subscription.status !== "active" &&
-            subscription.status !== "past_due" &&
-            subscription.status !== "unpaid" &&
-            subscription.status !== "canceled"
-          ) {
-            console.log(
-              `ℹ️ Statut Stripe non traité après paiement : ${subscription.status}`
-            );
-
-            break;
-          }
-
-          const subscriptionStatus:
-            | "TRIALING"
-            | "ACTIVE"
-            | "PAST_DUE"
-            | "CANCELED" =
-              subscription.status === "trialing"
-                ? "TRIALING"
-                : subscription.status === "active"
-                ? "ACTIVE"
-                : subscription.status === "canceled"
-                ? "CANCELED"
-                : "PAST_DUE";
-
-          const result = await sql`
-            UPDATE "User"
-            SET
-              "plan" = 'PRO',
-              "subscriptionStatus" = ${subscriptionStatus},
-              "stripeCustomerId" = ${stripeCustomerId},
-              "stripeSubId" = ${subscription.id}
-            WHERE "stripeCustomerId" = ${stripeCustomerId}
-            RETURNING
-              id,
-              email,
-              plan,
-              "subscriptionStatus"
-          `;
-
-          if (result.length > 0) {
-            console.log(
-              `💳 Paiement réussi pour utilisateur ${result[0].id} → PRO / ${subscriptionStatus}`
-            );
-          } else {
-            console.warn(
-              `⚠️ Aucun utilisateur trouvé pour le customer ${stripeCustomerId}`
-            );
-          }
-
-        } catch (dbError: any) {
-          console.error(
-            "❌ Erreur invoice.payment_succeeded :",
-            dbError.message
-          );
-
-          return NextResponse.json(
-            {
-              error:
-                "Erreur base de données.",
-            },
-            { status: 500 }
-          );
-        }
-
-        break;
-      }
-
-      // ==========================================================
-      // 4. ABONNEMENT TERMINÉ / SUPPRIMÉ
-      // ==========================================================
-
-      case "customer.subscription.deleted": {
-        const subscription =
-          event.data.object as Stripe.Subscription;
-
-        try {
-          const result = await sql`
-            UPDATE "User"
-            SET
-              "plan" = 'FREE',
-              "subscriptionStatus" = 'CANCELED',
-              "stripeSubId" = NULL
-            WHERE "stripeSubId" = ${subscription.id}
-            RETURNING
-              id,
-              email
-          `;
-
-          if (result.length > 0) {
-            console.log(
-              `🚪 Abonnement terminé pour utilisateur ${result[0].id} → FREE / CANCELED`
-            );
-          } else {
-            console.warn(
-              `⚠️ Aucun utilisateur trouvé avec l'abonnement ${subscription.id}`
-            );
-          }
-
-        } catch (dbError: any) {
-          console.error(
-            "❌ Erreur customer.subscription.deleted :",
-            dbError.message
-          );
-
-          return NextResponse.json(
-            {
-              error:
-                "Erreur base de données.",
-            },
-            { status: 500 }
-          );
-        }
-
-        break;
-      }
-
-      // ==========================================================
-      // AUTRES ÉVÉNEMENTS
-      // ==========================================================
-
-      default: {
-        console.log(
-          `ℹ️ Événement Stripe ignoré : ${event.type}`
-        );
-
-        break;
-      }
+    let subId: string | null = null;
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object as Stripe.Checkout.Session;
+      subId =
+        typeof session.subscription === "string"
+          ? session.subscription
+          : (session.subscription?.id ?? null);
+    } else if (
+      [
+        "customer.subscription.created",
+        "customer.subscription.updated",
+        "customer.subscription.deleted",
+      ].includes(event.type)
+    ) {
+      subId = (event.data.object as Stripe.Subscription).id;
+    } else if (
+      [
+        "invoice.paid",
+        "invoice.payment_succeeded",
+        "invoice.payment_failed",
+      ].includes(event.type)
+    ) {
+      const invoice = event.data.object as Stripe.Invoice;
+      const subscription = invoice.parent?.subscription_details?.subscription;
+      subId =
+        typeof subscription === "string"
+          ? subscription
+          : (subscription?.id ?? null);
     }
-
-    // ============================================================
-    // CONFIRMATION À STRIPE
-    // ============================================================
-
-    return NextResponse.json(
-      {
-        received: true,
-      },
-      { status: 200 }
-    );
-
-  } catch (error: any) {
-    console.error(
-      "❌ Erreur générale webhook Stripe :",
-      error.message
-    );
-
-    return NextResponse.json(
-      {
-        error:
-          "Erreur interne du webhook.",
-      },
-      { status: 500 }
-    );
+    if (!subId) return NextResponse.json({ received: true });
+    // Relire l'état actuel : un événement ancien ne doit pas rétablir un ancien statut.
+    const subscription = await stripe.subscriptions.retrieve(subId);
+    const userId = subscription.metadata.userId;
+    const customer =
+      typeof subscription.customer === "string"
+        ? subscription.customer
+        : subscription.customer.id;
+    if (
+      !userId ||
+      !subscription.items.data.some(
+        (item) => item.price.id === process.env.STRIPE_PRICE_ID,
+      )
+    )
+      return NextResponse.json({ received: true });
+    const { active, terminal, status, validUntil } =
+      subscriptionState(subscription);
+    const sql = getDb();
+    const rows =
+      await sql`UPDATE "User" SET plan=${active ? "PRO" : "FREE"},"subscriptionStatus"=${status}::"SubscriptionStatus",
+      "stripeSubId"=${terminal ? null : subscription.id},"subscriptionValidUntil"=${validUntil},"trialUsed"=("trialUsed" OR ${Boolean(subscription.trial_start)})
+      WHERE id=${userId} AND "stripeCustomerId"=${customer} AND ("stripeSubId"=${subscription.id} OR ("stripeSubId" IS NULL AND ${!terminal})) RETURNING id`;
+    if (!rows.length && !terminal)
+      return NextResponse.json(
+        { error: "Rapprochement temporairement impossible." },
+        { status: 500 },
+      );
+    return NextResponse.json({ received: true });
+  } catch (error) {
+    return apiError(error);
   }
 }

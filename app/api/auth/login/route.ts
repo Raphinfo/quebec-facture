@@ -1,47 +1,32 @@
-import { NextResponse } from 'next/server';
-import bcrypt from 'bcryptjs';
-import { getDb } from '@/lib/db';
-
-export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
+import { NextResponse } from "next/server";
+import { getDb } from "@/lib/db";
+import { createSession } from "@/lib/session";
+import { apiError, readJson } from "@/lib/http";
+import { InputError, emailAddress, passwordValue } from "@/lib/validation";
+import { rateLimit } from "@/lib/rate-limit";
+import bcrypt from "bcryptjs";
 
 export async function POST(request: Request) {
   try {
-    const { email, password } = await request.json();
-
-    if (!email || !password) {
-      return NextResponse.json({ error: 'Champs manquants' }, { status: 400 });
-    }
-
-    const sql = getDb();
-    const users = await sql`SELECT * FROM "User" WHERE email = ${email}`;
-
-    if (users.length === 0) {
-      return NextResponse.json({ error: 'Identifiants incorrects' }, { status: 401 });
-    }
-
-    const user = users[0];
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-
-    if (!isPasswordValid) {
-      return NextResponse.json({ error: 'Identifiants incorrects' }, { status: 401 });
-    }
-
-    const response = NextResponse.json({
-      message: 'Connexion réussie',
-      user: { id: user.id, email: user.email }
-    }, { status: 200 });
-
-    response.cookies.set('user_session', user.id, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 60 * 60 * 24 * 7,
-      path: '/',
-    });
-
+    const body = await readJson(request, 4096);
+    const email = emailAddress(body.email);
+    const password = passwordValue(body.password);
+    await rateLimit(`login:${email}`);
+    await rateLimit("login:global", 300, 900);
+    const users =
+      await getDb()`SELECT id,password FROM "User" WHERE LOWER(TRIM(email))=${email}`;
+    const dummyHash =
+      "$2b$12$R9h/cIPz0gi.URNNX3kh2OPST9/PgBkqquzi.Ss7KIUgO2t0jWMUW";
+    const valid = await bcrypt.compare(
+      password,
+      users[0]?.password ?? dummyHash,
+    );
+    if (users.length !== 1 || !valid)
+      throw new InputError("Identifiants incorrects.", 401);
+    const response = NextResponse.json({ message: "Connexion réussie." });
+    await createSession(users[0].id, response);
     return response;
-  } catch (error: any) {
-    console.error("=== ERREUR CRITIQUE LOGIN ===", error.message);
-    return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 });
+  } catch (error) {
+    return apiError(error);
   }
 }

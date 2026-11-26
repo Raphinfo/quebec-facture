@@ -1,69 +1,38 @@
-import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { getDb } from '@/lib/db';
-
-export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
-
-// 1. RÉCUPÉRER LES DÉPENSES
+import { NextResponse } from "next/server";
+import { getDb } from "@/lib/db";
+import { requireUser } from "@/lib/session";
+import { apiError, readJson } from "@/lib/http";
+import { InputError, text } from "@/lib/validation";
 export async function GET() {
   try {
-    const cookieStore = await cookies();
-    const userId = cookieStore.get('user_session')?.value;
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 });
-    }
-
-    const sql = getDb(); // Instanciation lazy
-    const expenses = await sql`
-      SELECT id, description, amount, category, "createdAt"
-      FROM "Expense"
-      WHERE "userId" = ${userId}
-      ORDER BY "createdAt" DESC
-    `;
-
-    return NextResponse.json(expenses, { status: 200 });
-  } catch (error: any) {
-    console.error("❌ Erreur GET Expenses:", error.message);
-    return NextResponse.json([], { status: 200 });
+    const id = await requireUser();
+    return NextResponse.json(
+      await getDb()`SELECT * FROM "Expense" WHERE "userId"=${id} ORDER BY "createdAt" DESC`,
+    );
+  } catch (error) {
+    return apiError(error);
   }
 }
-
-// 2. AJOUTER UNE DÉPENSE
 export async function POST(request: Request) {
   try {
-    const cookieStore = await cookies();
-    const userId = cookieStore.get('user_session')?.value;
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 });
-    }
-
-    const body = await request.json();
-    const { description, amount, category } = body;
-
-    if (!description || !amount) {
-      return NextResponse.json({ error: 'Champs manquants.' }, { status: 400 });
-    }
-
-    const parsedAmount = parseFloat(amount);
-    const sql = getDb(); // Instanciation lazy
-
-    await sql`
-      INSERT INTO "Expense" (id, description, amount, category, "userId")
-      VALUES (
-        gen_random_uuid()::text, 
-        ${description}, 
-        ${parsedAmount}, 
-        ${category || 'Général'}, 
-        ${userId}
-      )
-    `;
-
-    return NextResponse.json({ message: 'Dépense enregistrée avec succès !' }, { status: 201 });
-  } catch (error: any) {
-    console.error("❌ Erreur POST Expense:", error.message);
-    return NextResponse.json({ error: error.message || 'Une erreur interne est survenue.' }, { status: 500 });
+    const id = await requireUser();
+    const b = await readJson(request);
+    const description = text(b.description, "Description", 1000, true),
+      category = text(b.category ?? "Général", "Catégorie", 100, true);
+    if (
+      !["string", "number"].includes(typeof b.amount) ||
+      !/^\d{1,8}(?:\.\d{1,2})?$/.test(String(b.amount)) ||
+      Number(b.amount) <= 0
+    )
+      throw new InputError(
+        "Montant positif requis, avec au plus deux décimales.",
+      );
+    await getDb()`INSERT INTO "Expense" (id,description,amount,category,"userId") VALUES (${crypto.randomUUID()},${description},${String(b.amount)},${category},${id})`;
+    return NextResponse.json(
+      { message: "Dépense enregistrée." },
+      { status: 201 },
+    );
+  } catch (error) {
+    return apiError(error);
   }
 }
