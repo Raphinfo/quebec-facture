@@ -2675,6 +2675,20 @@ textarea:user-invalid,
   filter: brightness(0.92);
 }
 
+.demo-banner {
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--accent-border);
+  color: var(--foreground);
+  text-align: center;
+  padding: 9px 16px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.demo-banner strong {
+  color: var(--primary);
+}
+
 @media (max-width: 640px) {
   .invoice-line-grid {
     grid-template-columns: 1fr 1fr;

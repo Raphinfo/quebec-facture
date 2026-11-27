@@ -91,9 +91,9 @@ export default function Page() {
             M’abonner immédiatement
           </button>
           <small>
-            Carte requise. Après l’essai, renouvellement automatique à 15 $ CA
-            par mois sauf annulation préalable. Le montant final est présenté
-            sur la page de paiement.
+            Environnement de démonstration Stripe Test uniquement : aucun
+            paiement réel n’est effectué (utilisez uniquement une carte de test
+            Stripe).
           </small>
         </article>
       </div>

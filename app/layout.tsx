@@ -15,7 +15,16 @@ export const metadata: Metadata = {
   metadataBase: appBase,
   title: "Québec Facture — Facturation, Soumissions & TPS/TVQ",
   description:
-    "Logiciel de facturation simple et moderne pour travailleurs autonomes et PME du Québec : soumissions, factures PDF, Virement Interac, rapports TPS/TVQ et export comptable.",
+    "Projet portfolio et démonstration technique de facturation québécoise : soumissions, factures PDF, calcul TPS/TVQ, Virement Interac et intégration Stripe en mode test.",
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+    googleBot: {
+      index: false,
+      follow: false,
+    },
+  },
   openGraph: {
     title: "Québec Facture — Facturation, Soumissions & TPS/TVQ",
     description:
@@ -71,6 +80,11 @@ export default function RootLayout({
         <a className="skip-link" href="#main-content">
           Aller au contenu
         </a>
+        <div className="demo-banner" role="note">
+          <strong>Mode portfolio &amp; démonstration</strong> — Projet étudiant non
+          commercialisé · Paiements Stripe en mode test uniquement (aucune carte
+          réelle débitée).
+        </div>
         <main id="main-content" className="flex-grow">
           {children}
         </main>

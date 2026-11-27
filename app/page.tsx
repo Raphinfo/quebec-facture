@@ -25,38 +25,8 @@ const FAQS = [
 ];
 
 export default function Home() {
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "SoftwareApplication",
-        name: "Québec Facture",
-        applicationCategory: "BusinessApplication",
-        operatingSystem: "Web",
-        inLanguage: "fr-CA",
-        offers: {
-          "@type": "Offer",
-          price: "0",
-          priceCurrency: "CAD",
-        },
-      },
-      {
-        "@type": "FAQPage",
-        mainEntity: FAQS.map(([q, a]) => ({
-          "@type": "Question",
-          name: q,
-          acceptedAnswer: { "@type": "Answer", text: a },
-        })),
-      },
-    ],
-  };
-
   return (
     <div className="landing">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
       <header className="marketing-nav">
         <Brand />
         <nav aria-label="Navigation principale">
@@ -260,8 +230,8 @@ export default function Home() {
             Essayer Pro (3 jours gratuits)
           </Link>
           <small>
-            Carte requise pour l’essai Pro. Renouvellement automatique à 15 $
-            CA/mois sauf annulation avant la fin de l’essai.
+            Démonstration uniquement (environnement Stripe Test). Aucun paiement
+            réel n’est encaissé sur cette version portfolio.
           </small>
         </article>
       </section>

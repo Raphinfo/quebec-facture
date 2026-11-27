@@ -5,8 +5,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: "*",
-        allow: ["/", "/calculateur-tps-tvq", "/conditions", "/politique-de-confidentialite"],
-        disallow: ["/dashboard", "/api/", "/choose-plan", "/settings", "/expenses", "/subscription", "/success", "/verify-email", "/reset-password"],
+        disallow: "/",
       },
     ],
   };

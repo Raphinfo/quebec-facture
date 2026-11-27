@@ -25,6 +25,11 @@ export async function POST(request: Request) {
         "Les abonnements ne sont pas encore configurés.",
         503,
       );
+    if (process.env.STRIPE_SECRET_KEY?.startsWith("sk_live_"))
+      throw new InputError(
+        "Application en mode portfolio/démonstration : paiements réels désactivés.",
+        503,
+      );
     const stripe = getStripe(),
       origin = appOrigin();
     const price = await stripe.prices.retrieve(process.env.STRIPE_PRICE_ID);
