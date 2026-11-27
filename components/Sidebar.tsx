@@ -1,7 +1,7 @@
 "use client";
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Brand from "./Brand";
 
 const links = [
@@ -27,7 +27,23 @@ const links = [
 ];
 
 function Navigation() {
+  const router = useRouter();
   const tab = useSearchParams().get("tab") || "billing";
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  async function logout(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      router.replace("/login");
+      router.refresh();
+      setLoggingOut(false);
+    }
+  }
+
   return (
     <aside className="workspace-sidebar">
       <Brand />
@@ -70,9 +86,9 @@ function Navigation() {
           </div>
         </div>
         <Link href="/contact">Aide et contact ↗</Link>
-        <form action="/api/auth/logout" method="post">
-          <button type="submit" className="logout-button">
-            Se déconnecter
+        <form action="/api/auth/logout" method="post" onSubmit={logout}>
+          <button type="submit" disabled={loggingOut} className="logout-button">
+            {loggingOut ? "Déconnexion…" : "Se déconnecter"}
           </button>
         </form>
       </div>
